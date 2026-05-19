@@ -2,7 +2,7 @@ window.addEventListener("DOMContentLoaded",()=>{const t=document.createElement("
   "name": "我的离线工具",
   "title": "离线版",
   "exe": "离线工具.exe",
-  "url": "https://code.coze.cn/p/7635834507114840116/preview ",
+  "url": "https://wcrh4g5y9w.coze.site",
   "width": 1280,
   "height": 720,
   "hideMenu": true,
