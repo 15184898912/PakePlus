@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>信达云AI证件大师 V7.0</title>
+  <!-- TailwindCSS 轻量CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome 图标库 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    /* 自定义微调 — 保持浅灰商务风格 */
+    body {
+      background-color: #e9edf2;
+      font-family: 'Segoe UI', Roboto, system-ui, -apple-system, sans-serif;
+    }
+    .main-card {
+      background: #f4f6f9;
+      border-radius: 20px;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.08);
+      max-width: 1440px;
+      width: 95%;
+      height: 90vh;
+      min-height: 720px;
+      margin: 2rem auto;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    /* 顶部导航 */
+    .top-nav {
+      background: #ffffff;
+      border-bottom: 1px solid #d8dee6;
+      padding: 0.6rem 1.8rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nav-brand {
+      font-weight: 600;
+      font-size: 1.2rem;
+      letter-spacing: 0.5px;
+      color: #1e2a3a;
+    }
+    .nav-brand i {
+      color: #2a7de1;
+      margin-right: 8px;
+    }
+    .top-nav-actions button {
+      background: transparent;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 30px;
+      font-size: 0.9rem;
+      color: #2c3e50;
+      transition: 0.2s;
+    }
+    .top-nav-actions button:hover {
+      background: #e6ecf3;
+    }
+    /* 三栏布局 */
+    .workspace {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+    /* 左侧菜单 */
+    .left-menu {
+      width: 220px;
+      background: #f0f3f7;
+      border-right: 1px solid #d8dee6;
+      padding: 1.2rem 0.6rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+    .menu-item {
+      background: transparent;
+      border-radius: 14px;
+      padding: 0.7rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 500;
+      font-size: 0.95rem;
+      color: #1a2634;
+      cursor: default;
+      transition: 0.2s;
+    }
+    .menu-item i {
+      width: 24px;
+      color: #3b5f8a;
+      font-size: 1.1rem;
+    }
+    .menu-item:hover {
+      background: #e2e8f0;
+    }
+    .menu-item.active {
+      background: #d0ddea;
+      color: #0b1e33;
+      box-shadow: inset 2px 2px 6px rgba(0,0,0,0.02);
+    }
+    .menu-divider {
+      border-top: 1px solid #d0d8e2;
+      margin: 0.4rem 1rem;
+    }
+    /* 中间预览区 */
+    .preview-area {
+      flex: 1;
+      background: #eef2f6;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .preview-canvas-wrapper {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow: hidden;
+    }
+    #previewCanvas {
+      max-width: 100%;
+      max-height: 100%;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+      background: #f9fbfd;
+      border-radius: 12px;
+      object-fit: contain;
+    }
+    .preview-toolbar {
+      background: #f8faff;
+      border-top: 1px solid #d8dee6;
+      padding: 0.5rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .zoom-controls span {
+      margin: 0 6px;
+      color: #2f4052;
+      font-weight: 500;
+    }
+    /* 右侧参数面板 */
+    .right-panel {
+      width: 280px;
+      background: #f8fafc;
+      border-left: 1px solid #d8dee6;
+      padding: 1.2rem 1.2rem;
+      overflow-y: auto;
+    }
+    .param-section {
+      background: white;
+      border-radius: 16px;
+      padding: 1rem 1rem;
+      margin-bottom: 1.2rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+      border: 1px solid #e9edf3;
+    }
+    .param-section h4 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #1f2a3a;
+      margin-bottom: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .param-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 6px;
+      margin-bottom: 8px;
+    }
+    .param-row label {
+      font-size: 0.8rem;
+      color: #3f4f62;
+      min-width: 48px;
+    }
+    .param-row input[type="range"] {
+      flex: 1;
+      min-width: 80px;
+      accent-color: #2a7de1;
+    }
+    .color-box {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .btn {
+      border-radius: 30px;
+      padding: 6px 14px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      transition: 0.15s;
+      border: 1px solid transparent;
+      background: #eef2f7;
+    }
+    .btn-primary {
+      background: #1f5f9e;
+      color: white;
+      border-color: #1a4d80;
+    }
+    .btn-primary:hover {
+      background: #1a4d80;
+    }
+    .btn-outline {
+      border-color: #bcc9db;
+      background: white;
+    }
+    .btn-sm {
+      padding: 4px 12px;
+    }
+    .badge-size {
+      background: #e4ebf5;
+      padding: 2px 10px;
+      border-radius: 40px;
+      font-size: 0.75rem;
+    }
+    /* 自定义滚动条 */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: #e2e8f0; }
+    ::-webkit-scrollbar-thumb { background: #a6b8cf; border-radius: 10px; }
+    /* 自适应微调 */
+    @media (max-width: 1100px) {
+      .right-panel { width: 240px; }
+      .left-menu { width: 180px; }
+    }
+  </style>
+</head>
+<body>
+<div class="main-card">
+  <!-- 顶部导航栏 -->
+  <div class="top-nav">
+    <div class="nav-brand"><i class="fas fa-id-card"></i> 信达云·AI证件大师 V7.0</div>
+    <div class="top-nav-actions">
+      <button><i class="fas fa-file-import"></i> 导入</button>
+      <button><i class="fas fa-download"></i> 导出</button>
+      <button><i class="fas fa-cog"></i> 设置</button>
+      <button><i class="fas fa-question-circle"></i> 说明</button>
+    </div>
+  </div>
+  <!-- 工作区三栏 -->
+  <div class="workspace">
+    <!-- 左侧功能菜单 -->
+    <div class="left-menu">
+      <div class="menu-item active"><i class="fas fa-upload"></i> 图片上传</div>
+      <div class="menu-item"><i class="fas fa-magic"></i> 智能抠图</div>
+      <div class="menu-item"><i class="fas fa-fill-drip"></i> 换底色</div>
+      <div class="menu-item"><i class="fas fa-tshirt"></i> AI换装</div>
+      <div class="menu-item"><i class="fas fa-crop-alt"></i> 尺寸裁剪</div>
+      <div class="menu-item"><i class="fas fa-wand-magic-sparkles"></i> AI美颜</div>
+      <div class="menu-item"><i class="fas fa-layer-group"></i> 排版冲印</div>
+      <div class="menu-item"><i class="fas fa-file-export"></i> 导出</div>
+      <div class="menu-divider"></div>
+      <div class="menu-item"><i class="fas fa-info-circle"></i> 使用说明</div>
+    </div>
+    <!-- 中间预览区 -->
+    <div class="preview-area">
+      <div class="preview-canvas-wrapper" id="previewWrapper">
+        <canvas id="previewCanvas" width="500" height="600"></canvas>
+      </div>
+      <div class="preview-toolbar">
+        <div class="zoom-controls">
+          <i class="fas fa-search-minus"></i>
+          <span id="zoomLevel">100%</span>
+          <i class="fas fa-search-plus"></i>
+        </div>
+        <div><i class="far fa-hand-pointer"></i> 拖拽移动 | 滚轮缩放</div>
+      </div>
+    </div>
+    <!-- 右侧参数设置面板 -->
+    <div class="right-panel" id="rightPanel">
+      <!-- 图片上传区 -->
+      <div class="param-section">
+        <h4><i class="fas fa-image"></i> 上传照片</h4>
+        <div class="param-row">
+          <input type="file" id="fileInput" accept="image/*" style="font-size:0.75rem; max-width:140px;">
+          <button class="btn btn-primary btn-sm" id="loadDemoBtn">示例</button>
+        </div>
+        <div class="text-xs text-gray-500 mt-1">支持 jpg/png</div>
+      </div>
+      <!-- 换底色 -->
+      <div class="param-section">
+        <h4><i class="fas fa-fill-drip"></i> 换底色</h4>
+        <div class="param-row">
+          <button class="btn btn-sm btn-outline bg-red-100" data-color="#cc3333">红底</button>
+          <button class="btn btn-sm btn-outline bg-blue-100" data-color="#2a7de1">蓝底</button>
+          <button class="btn btn-sm btn-outline bg-gray-100" data-color="#f0f0f0">白底</button>
+          <button class="btn btn-sm btn-outline" data-color="gradient">渐变</button>
+        </div>
+        <div class="param-row">
+          <label>自定义</label>
+          <input type="color" id="customColor" value="#6b8cae">
+          <button class="btn btn-sm btn-outline" id="applyColorBtn">取色</button>
+        </div>
+      </div>
+      <!-- AI换装 (男性/女性正装) -->
+      <div class="param-section">
+        <h4><i class="fas fa-tshirt"></i> AI换装</h4>
+        <div class="param-row">
+          <button class="btn btn-sm btn-outline" id="suitMale">👔 男正装</button>
+          <button class="btn btn-sm btn-outline" id="suitFemale">👗 女正装</button>
+          <button class="btn btn-sm btn-outline" id="clearSuit">✖ 清除</button>
+        </div>
+      </div>
+      <!-- 尺寸裁剪 -->
+      <div class="param-section">
+        <h4><i class="fas fa-crop"></i> 尺寸裁剪</h4>
+        <div class="param-row">
+          <button class="btn btn-sm btn-outline" data-size="295,413">一寸</button>
+          <button class="btn btn-sm btn-outline" data-size="413,531">二寸</button>
+          <button class="btn btn-sm btn-outline" data-size="330,482">小二寸</button>
+          <button class="btn btn-sm btn-outline" data-size="390,510">护照</button>
+        </div>
+        <div class="param-row">
+          <button class="btn btn-sm btn-outline" data-size="500,500">签证</button>
+          <button class="btn btn-sm btn-outline" data-size="358,441">身份证</button>
+        </div>
+        <div class="param-row mt-1">
+          <label>自定义mm</label>
+          <input type="number" id="customW" value="35" style="width:52px;"> x <input type="number" id="customH" value="45" style="width:52px;">
+          <button class="btn btn-sm btn-primary" id="applyCustomSize">应用</button>
+        </div>
+      </div>
+      <!-- AI美颜调节 -->
+      <div class="param-section">
+        <h4><i class="fas fa-wand-magic-sparkles"></i> AI美颜</h4>
+        <div class="param-row"><label>磨皮</label><input type="range" min="0" max="100" value="20" id="smoothness"></div>
+        <div class="param-row"><label>美白</label><input type="range" min="0" max="100" value="15" id="whitening"></div>
+        <div class="param-row"><label>瘦脸</label><input type="range" min="0" max="100" value="0" id="thinFace"></div>
+        <div class="param-row"><label>大眼</label><input type="range" min="0" max="100" value="0" id="bigEye"></div>
+        <div class="param-row"><label>调色</label><input type="range" min="0" max="100" value="30" id="colorTune"></div>
+        <button class="btn btn-primary btn-sm mt-2" id="applyBeauty">应用美颜</button>
+      </div>
+      <!-- 排版冲印 & 导出 -->
+      <div class="param-section">
+        <h4><i class="fas fa-file-export"></i> 导出/排版</h4>
+        <div class="param-row">
+          <button class="btn btn-sm btn-outline" id="layout6">6寸排版</button>
+          <button class="btn btn-sm btn-outline" id="layout7">7寸排版</button>
+        </div>
+        <div class="param-row">
+          <label>品质</label><input type="range" id="exportQuality" min="50" max="100" value="92">
+          <span id="qualityLabel">92%</span>
+        </div>
+        <div class="param-row">
+          <button class="btn btn-primary btn-sm" id="exportJpg">JPG导出</button>
+          <button class="btn btn-primary btn-sm" id="exportPng">PNG导出</button>
+        </div>
+      </div>
+      <!-- 使用说明简版 -->
+      <div class="param-section" style="background:#f5f8fe;">
+        <h4><i class="fas fa-book"></i> 使用说明</h4>
+        <ul class="text-xs text-gray-600 space-y-1">
+          <li>① 上传图片或点“示例”加载</li>
+          <li>② 智能抠图: 默认自动 (左侧菜单点击)</li>
+          <li>③ 换底色/换装/尺寸/美颜</li>
+          <li>④ 导出JPG/PNG，支持排版</li>
+          <li>对标原版V7.0核心功能</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  (function() {
+    "use strict";
+
+    // DOM元素
+    const canvas = document.getElementById('previewCanvas');
+    const ctx = canvas.getContext('2d');
+    const fileInput = document.getElementById('fileInput');
+    const loadDemoBtn = document.getElementById('loadDemoBtn');
+
+    // 状态管理
+    let currentImage = null;          // 原始图像(Image对象)
+    let processedImageData = null;   // 当前处理的ImageData (用于实时渲染)
+    let currentSuit = null;          // 换装叠加层 (暂时简单模拟)
+    let bgColor = '#f0f0f0';        // 默认白底
+
+    // ----- 初始化画布(浅灰底) -----
+    function initCanvas() {
+      ctx.fillStyle = '#eef2f6';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    initCanvas();
+
+    // ----- 加载图片到画布（基础渲染） -----
+    function loadImageToCanvas(img) {
+      currentImage = img;
+      // 设置画布尺寸适应比例 (最大800*1000)
+      let w = img.naturalWidth || img.width;
+      let h = img.naturalHeight || img.height;
+      const maxW = 700, maxH = 800;
+      if (w > maxW) { h = h * maxW / w; w = maxW; }
+      if (h > maxH) { w = w * maxH / h; h = maxH; }
+      canvas.width = Math.floor(w);
+      canvas.height = Math.floor(h);
+      // 绘制图像 (先填充背景色)
+      ctx.fillStyle = bgColor || '#f0f0f0';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      // 保存处理数据
+      processedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    }
+
+    // ----- 重新渲染 (基于processedImageData) -----
+    function renderFromProcessed() {
+      if (!processedImageData) return;
+      canvas.width = processedImageData.width;
+      canvas.height = processedImageData.height;
+      ctx.putImageData(processedImageData, 0, 0);
+      // 如果有换装叠加 (当前简化：绘制一个矩形示意)
+      if (currentSuit === 'male') {
+        ctx.fillStyle = 'rgba(40, 70, 110, 0.4)';
+        ctx.fillRect(20, 20, 120, 160);
+        ctx.font = '12px sans-serif';
+        ctx.fillStyle = 'white';
+        ctx.fillText('👔 男装', 30, 50);
+      } else if (currentSuit === 'female') {
+        ctx.fillStyle = 'rgba(150, 80, 120, 0.4)';
+        ctx.fillRect(20, 20, 120, 160);
+        ctx.font = '12px sans-serif';
+        ctx.fillStyle = 'white';
+        ctx.fillText('👗 女装', 30, 50);
+      }
+    }
+
+    // 更新预览 (由各功能调用)
+    function updatePreview() {
+      renderFromProcessed();
+    }
+
+    // ----- 智能抠图 (人像分割模拟: 仅演示透明背景) -----
+    function smartRemoveBg() {
+      if (!currentImage) return alert('请先上传图片');
+      // 模拟: 将背景设置为纯色 (简单示例: 以边缘颜色替代，实际用canvas实现简易抠图)
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      // 这里不做复杂AI, 仅演示替换边缘颜色 -> 模拟抠图: 将接近边缘颜色改为半透明 (示意)
+      // 更真实: 用阈值把近似背景色去掉, 为了演示直观，设定一个简单规则
+      for (let i = 0; i < data.length; i += 4) {
+        let r = data[i], g = data[i+1], b = data[i+2];
+        // 如果颜色接近白色或灰色，设为透明 (模拟)
+        if (r > 200 && g > 200 && b > 200) {
+          data[i+3] = 0;
+        }
+      }
+      ctx.putImageData(imageData, 0, 0);
+      processedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      updatePreview();
+      alert('智能抠图完成 (演示效果)');
+    }
+
+    // ----- 换底色 -----
+    function changeBg(color) {
+      if (!processedImageData) return alert('无图片');
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imgData.data;
+      // 简单实现: 将当前透明区域(或接近白色)替换为指定颜色 (模拟)
+      let targetR, targetG, targetB;
+      if (color === 'gradient') {
+        // 渐变模拟：从上到下渐变
+        for (let y = 0; y < canvas.height; y++) {
+          for (let x = 0; x < canvas.width; x++) {
+            let idx = (y * canvas.width + x) * 4;
+            let r = data[idx], g = data[idx+1], b = data[idx+2];
+            if (r > 200 && g > 200 && b > 200) {
+              let grad = y / canvas.height;
+              data[idx] = 100 + 150 * grad;
+              data[idx+1] = 120 + 80 * grad;
+              data[idx+2] = 200;
+            }
+          }
+        }
+      } else {
+        // 解析十六进制
+        const hex = color.replace('#','');
+        targetR = parseInt(hex.substring(0,2),16);
+        targetG = parseInt(hex.substring(2,4),16);
+        targetB = parseInt(hex.substring(4,6),16);
+        for (let i = 0; i < data.length; i += 4) {
+          let r = data[i], g = data[i+1], b = data[i+2];
+          if (r > 200 && g > 200 && b > 200) {  // 简单近似背景
+            data[i] = targetR;
+            data[i+1] = targetG;
+            data[i+2] = targetB;
+          }
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+      processedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      updatePreview();
+    }
+
+    // ----- 换装 (模拟) -----
+    function applySuit(gender) {
+      if (!currentImage) return alert('请先上传图片');
+      currentSuit = gender;
+      updatePreview();
+    }
+    function clearSuit() {
+      currentSuit = null;
+      updatePreview();
+    }
+
+    // ----- 尺寸裁剪 (预设) -----
+    function applySize(w, h) {
+      if (!currentImage) return alert('无图片');
+      // 直接缩放画布到目标尺寸(保留内容)
+      const tempCanvas = document.createElement('canvas');
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCanvas.width = w;
+      tempCanvas.height = h;
+      tempCtx.drawImage(canvas, 0, 0, w, h);
+      canvas.width = w;
+      canvas.height = h;
+      ctx.drawImage(tempCanvas, 0, 0);
+      processedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      updatePreview();
+    }
+
+    // ----- 美颜 (简易: 亮度/对比度/模糊模拟) -----
+    function applyBeauty() {
+      if (!processedImageData) return alert('请先上传');
+      const smooth = document.getElementById('smoothness').value / 100;
+      const white = document.getElementById('whitening').value / 100;
+      const thin = document.getElementById('thinFace').value / 100;
+      const eye = document.getElementById('bigEye').value / 100;
+      const tune = document.getElementById('colorTune').value / 100;
+      // 简单实现: 调整亮度, 对比度, 模糊(降采样再缩放模拟磨皮)
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imgData.data;
+      // 美白亮度增加
+      for (let i = 0; i < data.length; i += 4) {
+        data[i] = Math.min(255, data[i] + 20 * white);
+        data[i+1] = Math.min(255, data[i+1] + 20 * white);
+        data[i+2] = Math.min(255, data[i+2] + 20 * white);
+        // 调色: 增加饱和度简单版
+        if (tune > 0) {
+          data[i] = Math.min(255, data[i] * (1 + 0.2*tune));
+          data[i+1] = Math.min(255, data[i+1] * (1 + 0.2*tune));
+          data[i+2] = Math.min(255, data[i+2] * (1 + 0.2*tune));
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+      // 磨皮: 简单的模糊 (box blur)
+      if (smooth > 0.2) {
+        const blurCanvas = document.createElement('canvas');
+        blurCanvas.width = canvas.width;
+        blurCanvas.height = canvas.height;
+        const blurCtx = blurCanvas.getContext('2d');
+        blurCtx.filter = `blur(${smooth*3}px)`;
+        blurCtx.drawImage(canvas, 0, 0);
+        ctx.drawImage(blurCanvas, 0, 0);
+      }
+      processedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      updatePreview();
+    }
+
+    // ----- 排版(模拟6寸/7寸) 生成多图排版 -----
+    function layoutPrint(size) {
+      if (!currentImage) return alert('先上传图片');
+      const cols = size === 6 ? 4 : 5;
+      const rows = size === 6 ? 2 : 2;
+      const cellW = Math.floor(canvas.width / cols);
+      const cellH = Math.floor(canvas.height / rows);
+      const layoutCanvas = document.createElement('canvas');
+      layoutCanvas.width = canvas.width;
+      layoutCanvas.height = canvas.height;
+      const layoutCtx = layoutCanvas.getContext('2d');
+      layoutCtx.fillStyle = 'white';
+      layoutCtx.fillRect(0,0,layoutCanvas.width, layoutCanvas.height);
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          layoutCtx.drawImage(canvas, c*cellW, r*cellH, cellW, cellH);
+        }
+      }
+      // 展示新画布
+      canvas.width = layoutCanvas.width;
+      canvas.height = layoutCanvas.height;
+      ctx.drawImage(layoutCanvas, 0, 0);
+      processedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      updatePreview();
+    }
+
+    // ----- 导出 -----
+    function exportImage(type) {
+      const quality = parseInt(document.getElementById('exportQuality').value)/100;
+      document.getElementById('qualityLabel').textContent = Math.round(quality*100)+'%';
+      const mime = type === 'png' ? 'image/png' : 'image/jpeg';
+      const dataUrl = canvas.toDataURL(mime, quality);
+      const link = document.createElement('a');
+      link.download = `证件照.${type}`;
+      link.href = dataUrl;
+      link.click();
+    }
+
+    // ----- 事件绑定 -----
+    // 上传
+    fileInput.addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        const img = new Image();
+        img.onload = function() {
+          loadImageToCanvas(img);
+          updatePreview();
+        }
+        img.src = ev.target.result;
+      }
+      reader.readAsDataURL(file);
+    });
+
+    // 示例图片 (内联生成一个简单头像)
+    loadDemoBtn.addEventListener('click', function() {
+      const img = new Image();
+      img.onload = function() {
+        loadImageToCanvas(img);
+        updatePreview();
+      }
+      img.src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAYAAABw4pVUAAAAAXNSR0IArs4c6QAAAr5JREFUeF7t29FNAzEMBdD+F4EJkNgAiQ2YADZgA2AC2IAXkY+Bm0ZCUXRJHNmvcZJz/LX8HNnxNE3T7I+ZEJgQgAmYmIAJgQkBmICBCZiYgAmBCQGYgIEJmJiACYEJAZiAgQmYmIAJgQkBmICBCZiYgAmBCQGYgIEJmJiACYEJAZiAgQmYmIAJgQkBmICBCZiYgAmBCQGYgIEJmJiACYEJAZiAgQmYmIAJgQkBmICBCZiYgAmBCQGYgIEJmJiACYEJAZiAgQmYmIAJgQkBmICBCZiYgAmBCQGYgIEJmJiACYEJAZiAgQmYmIAJgQkBmICBCZiYgAmBCQGYgIEJmJiACYEJAZiAgQmYmIAJgQkBmICBCZiYgAmBCQGYgIEJmJiACYEJAZiAgQmYmIAJgQkBmICBCZiYgAmBCQGYgIEJmJiACYEJAZiAgQmYmIAJgQkBmICBCZiYgAmBCQGYgIEJmJiACYEJAZiAgQmYmIAJgQkBmICBCZiYgAmBCQGYgIEJmJiACYEJAZiAgQmYmIAJgQkBmICBCZiYgAmBCQGYgIEJmJiACYEJAZiAgQmYmIAJgQkBmICBCZiYgAmBCQGYgIEJmJiACYEJAZiAgQmYmIAJgQkBmICBCZiYgAmBCQGYgIEJmJiACYEJAZiAgQmYmIAJgQkBmICBCZiYgAmBCQGYgIEJmJiACYEJAZiAgQmYmIAJgQkBmICBCZiYgAmBCQGYgIEJmJiACYEJAZiAgQmYmIAJgQkBmICBCZiYgAmBCQGYgIEJmJiACYEJAZiAgQmYmIAJgQkBmICBCZiYgAmBCQGYgIEJmJiACYEJAZiAgQmYmIAJgQkBmICBCZiYgAmBCQGYgIEJmJiACYEJAZiAgQmYmIAJgQkBmICBCZiYgAmBCQGYgIEJmJiACYEJAZiAgQmYmIAJgQkBmICBCZiYgAmBCQGYgIEJmJiACYEJgZ/pB0lqGjAh7AQpAAAAAElFTkSuQmCC";
+    });
+
+    // 换底色
+    document.querySelectorAll('[data-color]').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const color = this.dataset.color;
+        bgColor = color;
+        changeBg(color);
+      });
+    });
+    document.getElementById('applyColorBtn').addEventListener('click', function() {
+      const color = document.getElementById('customColor').value;
+      bgColor = color;
+      changeBg(color);
+    });
+
+    // 换装
+    document.getElementById('suitMale').addEventListener('click', () => applySuit('male'));
+    document.getElementById('suitFemale').addEventListener('click', () => applySuit('female'));
+    document.getElementById('clearSuit').addEventListener('click', clearSuit);
+
+    // 尺寸
+    document.querySelectorAll('[data-size]').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const [w,h] = this.dataset.size.split(',').map(Number);
+        applySize(w, h);
+      });
+    });
+    document.getElementById('applyCustomSize').addEventListener('click', function() {
+      const w = parseInt(document.getElementById('customW').value) * 10; // 粗略转换mm->px
+      const h = parseInt(document.getElementById('customH').value) * 10;
+      if (w>0 && h>0) applySize(w, h);
+    });
+
+    // 美颜
+    document.getElementById('applyBeauty').addEventListener('click', applyBeauty);
+
+    // 排版
+    document.getElementById('layout6').addEventListener('click', () => layoutPrint(6));
+    document.getElementById('layout7').addEventListener('click', () => layoutPrint(7));
+
+    // 导出
+    document.getElementById('exportJpg').addEventListener('click', () => exportImage('jpg'));
+    document.getElementById('exportPng').addEventListener('click', () => exportImage('png'));
+
+    // 智能抠图 (左侧菜单模拟)
+    document.querySelector('.left-menu').children[1].addEventListener('click', smartRemoveBg);
+
+    // 额外: 调节品质标签
+    document.getElementById('exportQuality').addEventListener('input', function() {
+      document.getElementById('qualityLabel').textContent = this.value + '%';
+    });
+
+    // 加载示例
+    window.addEventListener('load', function() {
+      loadDemoBtn.click();
+    });
+
+  })();
+</script>
+</body>
+</html>
