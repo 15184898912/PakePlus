@@ -344,35 +344,45 @@
       overflow: auto;
       position: relative;
       background: var(--surface);
+      -webkit-overflow-scrolling: touch;
     }
     .sheet-grid-inner {
+      display: inline-block;
+      min-width: 100%;
       position: relative;
+    }
+
+    /* Header Row (corner + column headers) */
+    .grid-header-row {
+      display: flex;
+      position: sticky;
+      top: 0;
+      z-index: 20;
     }
 
     /* Corner cell */
     .grid-corner {
       position: sticky;
-      top: 0;
       left: 0;
       z-index: 30;
       width: var(--row-header-width);
+      min-width: var(--row-header-width);
       height: var(--col-header-height);
       background: var(--header-gradient);
       border-right: 2px solid #b8d4ff;
       border-bottom: 2px solid #b8d4ff;
-      float: left;
+      flex-shrink: 0;
+      cursor: pointer;
+      box-sizing: border-box;
     }
 
     /* Column Headers */
     .col-headers {
-      position: sticky;
-      top: 0;
-      z-index: 20;
       display: flex;
       background: var(--header-gradient);
       height: var(--col-header-height);
-      margin-left: var(--row-header-width);
       border-bottom: 2px solid #b8d4ff;
+      box-sizing: border-box;
     }
     .col-header {
       min-width: var(--default-cell-width);
@@ -388,6 +398,7 @@
       position: relative;
       user-select: none;
       flex-shrink: 0;
+      box-sizing: border-box;
     }
     .col-header:hover { background: rgba(24,144,255,0.1); }
     .col-header.selected { background: rgba(24,144,255,0.2); color: var(--primary); }
@@ -402,22 +413,20 @@
     }
     .col-resizer:hover { background: var(--primary); }
 
-    /* Row area */
-    .grid-body {
+    /* Data Rows */
+    .grid-data-row {
       display: flex;
     }
-    .row-headers {
+    .row-header {
       position: sticky;
       left: 0;
       z-index: 10;
-      background: var(--header-gradient);
-      border-right: 2px solid #b8d4ff;
       width: var(--row-header-width);
-      flex-shrink: 0;
-    }
-    .row-header {
+      min-width: var(--row-header-width);
       height: var(--default-cell-height);
+      border-right: 2px solid #b8d4ff;
       border-bottom: 1px solid #c5d9f0;
+      background: var(--header-gradient);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -426,21 +435,26 @@
       color: #4a5568;
       cursor: pointer;
       user-select: none;
+      flex-shrink: 0;
+      box-sizing: border-box;
+      position: relative;
     }
     .row-header:hover { background: rgba(24,144,255,0.1); }
     .row-header.selected { background: rgba(24,144,255,0.2); color: var(--primary); }
     .row-resizer {
+      position: absolute;
+      bottom: -2px;
+      left: 0;
+      width: 100%;
       height: 4px;
       cursor: row-resize;
+      z-index: 5;
     }
+    .row-resizer:hover { background: var(--primary); }
 
-    /* Cells area */
-    .cells-area {
-      position: relative;
-    }
-    .grid-row {
+    /* Cells */
+    .grid-cells {
       display: flex;
-      height: var(--default-cell-height);
     }
     .grid-cell {
       min-width: var(--default-cell-width);
@@ -459,6 +473,7 @@
       flex-shrink: 0;
       display: flex;
       align-items: center;
+      box-sizing: border-box;
     }
     .grid-cell.selected {
       border: 2px solid var(--primary);
@@ -1037,56 +1052,60 @@
 
         <!-- Grid -->
         <div class="sheet-container">
-          <div class="sheet-grid" ref="gridRef" @scroll="handleGridScroll">
-            <div class="sheet-grid-inner" :style="{width: totalWidth+'px', height: totalHeight+'px'}">
-              <!-- Corner -->
-              <div class="grid-corner" @click="selectAll"></div>
-              <!-- Col Headers -->
-              <div class="col-headers" :style="{width: (totalWidth - 50)+'px', marginLeft: '50px'}">
-                <div v-for="c in visibleCols" :key="c.idx" class="col-header" :class="{selected: isColSelected(c.idx)}"
-                  :style="{width: c.width+'px', minWidth: c.width+'px'}"
-                  @mousedown="handleColMouseDown($event, c.idx)"
-                  @contextmenu.prevent="showColContextMenu($event, c.idx)">
-                  {{ c.letter }}
-                  <div class="col-resizer" @mousedown.stop="startColResize($event, c.idx)"></div>
+          <div class="sheet-grid" ref="gridRef">
+            <div class="sheet-grid-inner">
+              <!-- Corner + Col Headers Row -->
+              <div class="grid-header-row">
+                <div class="grid-corner" @click="selectAll"></div>
+                <div class="col-headers">
+                  <template v-for="i in COL_COUNT" :key="'ch'+i">
+                    <div v-if="!hiddenCols.has(i-1)" class="col-header" :class="{selected: isColSelected(i-1)}"
+                      :style="{width: getColWidth(i-1)+'px', minWidth: getColWidth(i-1)+'px'}"
+                      @mousedown="handleColMouseDown($event, i-1)"
+                      @contextmenu.prevent="showColContextMenu($event, i-1)">
+                      {{ colIndexToLetter(i-1) }}
+                      <div class="col-resizer" @mousedown.stop="startColResize($event, i-1)"></div>
+                    </div>
+                  </template>
                 </div>
               </div>
-              <!-- Body -->
-              <div class="grid-body">
-                <div class="row-headers" :style="{height: (totalHeight - 24)+'px'}">
-                  <div v-for="r in visibleRows" :key="r.idx" class="row-header" :class="{selected: isRowSelected(r.idx)}"
-                    :style="{height: r.height+'px'}"
-                    @mousedown="handleRowMouseDown($event, r.idx)"
-                    @contextmenu.prevent="showRowContextMenu($event, r.idx)">
-                    {{ r.idx+1 }}
+              <!-- Body Rows -->
+              <template v-for="r in ROW_COUNT" :key="'row'+r">
+                <div v-if="!hiddenRows.has(r-1)" class="grid-data-row">
+                  <div class="row-header" :class="{selected: isRowSelected(r-1)}"
+                    :style="{height: getRowHeight(r-1)+'px', minHeight: getRowHeight(r-1)+'px'}"
+                    @mousedown="handleRowMouseDown($event, r-1)"
+                    @contextmenu.prevent="showRowContextMenu($event, r-1)">
+                    {{ r }}
+                    <div class="row-resizer" @mousedown.stop="startRowResize($event, r-1)"></div>
+                  </div>
+                  <div class="grid-cells">
+                    <template v-for="c in COL_COUNT" :key="'cell'+r+'-'+c">
+                      <div v-if="!hiddenCols.has(c-1)"
+                        class="grid-cell"
+                        :class="getCellClasses(r-1, c-1)"
+                        :style="getCellStyle(r-1, c-1)"
+                        :data-row="r-1" :data-col="c-1"
+                        @mousedown="handleCellMouseDown($event, r-1, c-1)"
+                        @dblclick="startEdit(r-1, c-1)"
+                        @contextmenu.prevent="showCellContextMenu($event, r-1, c-1)">
+                        <template v-if="editingCell && editingCell.row===r-1 && editingCell.col===c-1">
+                          <input ref="cellInputRef" class="cell-editor" v-model="editingValue"
+                            @keydown="handleEditKeydown"
+                            @blur="confirmEdit"
+                            @mousedown.stop>
+                        </template>
+                        <span v-else class="cell-content">{{ getCellDisplay(r-1, c-1) }}</span>
+                        <div v-if="isSelectionEnd(r-1, c-1)" class="fill-handle" @mousedown.stop="startFillDrag"></div>
+                      </div>
+                    </template>
                   </div>
                 </div>
-                <div class="cells-area" :style="{width: (totalWidth - 50)+'px', height: (totalHeight - 24)+'px', position:'relative'}">
-                  <div v-for="r in visibleRows" :key="'r'+r.idx" class="grid-row" :style="{height:r.height+'px',position:'absolute',top:r.top+'px',left:0,display:'flex'}">
-                    <div v-for="c in visibleCols" :key="'c'+c.idx"
-                      class="grid-cell"
-                      :class="getCellClasses(r.idx, c.idx)"
-                      :style="getCellStyle(r.idx, c.idx)"
-                      :data-row="r.idx" :data-col="c.idx"
-                      @mousedown="handleCellMouseDown($event, r.idx, c.idx)"
-                      @dblclick="startEdit(r.idx, c.idx)"
-                      @contextmenu.prevent="showCellContextMenu($event, r.idx, c.idx)">
-                      <template v-if="editingCell && editingCell.row===r.idx && editingCell.col===c.idx">
-                        <input ref="cellInputRef" class="cell-editor" v-model="editingValue"
-                          @keydown="handleEditKeydown"
-                          @blur="confirmEdit"
-                          @mousedown.stop>
-                      </template>
-                      <span v-else class="cell-content">{{ getCellDisplay(r.idx, c.idx) }}</span>
-                      <div v-if="isSelectionEnd(r.idx, c.idx)" class="fill-handle" @mousedown.stop="startFillDrag"></div>
-                    </div>
-                  </div>
-                  <!-- Collaborator cursors -->
-                  <div v-for="collab in collaborators" :key="collab.id" class="collab-cursor"
-                    :style="{left: getCellLeft(collab.col)+'px', top: getCellTop(collab.row)+'px', background:collab.color, width:'2px', height:defaultRowHeight+'px'}">
-                    <div class="collab-flag" :style="{background:collab.color}">{{ collab.name }}</div>
-                  </div>
-                </div>
+              </template>
+              <!-- Collaborator cursors -->
+              <div v-for="collab in collaborators" :key="collab.id" class="collab-cursor"
+                :style="{left: (getCellLeft(collab.col)+50)+'px', top: (getCellTop(collab.row)+24)+'px', background:collab.color, width:'2px', height:defaultRowHeight+'px'}">
+                <div class="collab-flag" :style="{background:collab.color}">{{ collab.name }}</div>
               </div>
             </div>
           </div>
@@ -2561,10 +2580,28 @@
 
       // Scroll
       const gridRef = ref(null);
-      const scrollTop = ref(0);
-      const scrollLeft = ref(0);
-      const viewportWidth = ref(800);
-      const viewportHeight = ref(400);
+
+      // Simple dimension helpers
+      function getColWidth(col) {
+        return colWidths.value[col] || defaultColWidth;
+      }
+      function getRowHeight(row) {
+        return rowHeights.value[row] || defaultRowHeight;
+      }
+      function getCellLeft(col) {
+        let left = 0;
+        for (let i = 0; i < col; i++) {
+          if (!hiddenCols.value.has(i)) left += getColWidth(i);
+        }
+        return left;
+      }
+      function getCellTop(row) {
+        let top = 0;
+        for (let i = 0; i < row; i++) {
+          if (!hiddenRows.value.has(i)) top += getRowHeight(i);
+        }
+        return top;
+      }
 
       // Context menu
       const contextMenu = reactive({ visible: false, x: 0, y: 0, items: [], target: null });
@@ -2718,63 +2755,6 @@
         };
       }
 
-      // Column/Row positions
-      const colPositions = computed(() => {
-        const pos = [];
-        let left = 0;
-        for (let i = 0; i < COL_COUNT; i++) {
-          if (hiddenCols.value.has(i)) { pos.push({left, width:0, visible:false}); continue; }
-          const w = colWidths.value[i] || defaultColWidth;
-          pos.push({left, width: w, visible: true});
-          left += w;
-        }
-        return pos;
-      });
-
-      const rowPositions = computed(() => {
-        const pos = [];
-        let top = 0;
-        for (let i = 0; i < ROW_COUNT; i++) {
-          if (hiddenRows.value.has(i)) { pos.push({top, height:0, visible:false}); continue; }
-          const h = rowHeights.value[i] || defaultRowHeight;
-          pos.push({top, height: h, visible: true});
-          top += h;
-        }
-        return pos;
-      });
-
-      const totalWidth = computed(() => colPositions.value.reduce((s,c) => s+(c.visible?c.width:0), 0));
-      const totalHeight = computed(() => rowPositions.value.reduce((s,r) => s+(r.visible?r.height:0), 0));
-
-      // Visible cols/rows for virtual scrolling
-      const visibleCols = computed(() => {
-        const cols = [];
-        const sl = scrollLeft.value;
-        const vw = viewportWidth.value;
-        for (let i = 0; i < COL_COUNT; i++) {
-          const p = colPositions.value[i];
-          if (!p.visible) continue;
-          if (p.left + p.width < sl) continue;
-          if (p.left > sl + vw + 200) break;
-          cols.push({ idx: i, left: p.left, width: p.width, letter: colIndexToLetter(i) });
-        }
-        return cols;
-      });
-
-      const visibleRows = computed(() => {
-        const rows = [];
-        const st = scrollTop.value;
-        const vh = viewportHeight.value;
-        for (let i = 0; i < ROW_COUNT; i++) {
-          const p = rowPositions.value[i];
-          if (!p.visible) continue;
-          if (p.top + p.height < st) continue;
-          if (p.top > st + vh + 200) break;
-          rows.push({ idx: i, top: p.top, height: p.height });
-        }
-        return rows;
-      });
-
       const currentCellAddr = computed(() => cellAddr(selection.endRow, selection.endCol));
 
       // Selection stats
@@ -2886,13 +2866,6 @@
           delete activeSheet.value.cells[key].formula;
         }
         isDirty.value = true;
-      }
-
-      function getCellLeft(col) {
-        return colPositions.value[col]?.left || 0;
-      }
-      function getCellTop(row) {
-        return rowPositions.value[row]?.top || 0;
       }
 
       function isInSelection(row, col) {
@@ -3205,15 +3178,18 @@
 
       function scrollToCell(row, col) {
         if (!gridRef.value) return;
-        const rp = rowPositions.value[row];
-        const cp = colPositions.value[col];
-        if (!rp || !cp) return;
-        const st = scrollTop.value, sl = scrollLeft.value;
-        const vh = viewportHeight.value, vw = viewportWidth.value;
-        if (rp.top < st) gridRef.value.scrollTop = rp.top;
-        else if (rp.top + rp.height > st + vh) gridRef.value.scrollTop = rp.top + rp.height - vh;
-        if (cp.left < sl) gridRef.value.scrollLeft = cp.left;
-        else if (cp.left + cp.width > sl + vw) gridRef.value.scrollLeft = cp.left + cp.width - vw;
+        const cellLeft = getCellLeft(col);
+        const cellTop = getCellTop(row);
+        const cellW = getColWidth(col);
+        const cellH = getRowHeight(row);
+        const rh = 50; // row header width
+        const ch = 24; // col header height
+        const st = gridRef.value.scrollTop, sl = gridRef.value.scrollLeft;
+        const vh = gridRef.value.clientHeight - ch, vw = gridRef.value.clientWidth - rh;
+        if (cellTop < st) gridRef.value.scrollTop = cellTop;
+        else if (cellTop + cellH > st + vh) gridRef.value.scrollTop = cellTop + cellH - vh;
+        if (cellLeft < sl) gridRef.value.scrollLeft = cellLeft;
+        else if (cellLeft + cellW > sl + vw) gridRef.value.scrollLeft = cellLeft + cellW - vw;
       }
 
       // Mouse handlers
@@ -3253,15 +3229,21 @@
         const y = e.clientY - rect.top + grid.scrollTop - 24;
         // Find row/col at position
         let foundRow = selection.endRow, foundCol = selection.endCol;
+        let cumTop = 0;
         for (let i = 0; i < ROW_COUNT; i++) {
-          const p = rowPositions.value[i];
-          if (y >= p.top && y < p.top + p.height) { foundRow = i; break; }
-          if (y < p.top) { foundRow = Math.max(0, i-1); break; }
+          if (hiddenRows.value.has(i)) continue;
+          const h = getRowHeight(i);
+          if (y >= cumTop && y < cumTop + h) { foundRow = i; break; }
+          if (y < cumTop) { foundRow = Math.max(0, i-1); break; }
+          cumTop += h;
         }
+        let cumLeft = 0;
         for (let i = 0; i < COL_COUNT; i++) {
-          const p = colPositions.value[i];
-          if (x >= p.left && x < p.left + p.width) { foundCol = i; break; }
-          if (x < p.left) { foundCol = Math.max(0, i-1); break; }
+          if (hiddenCols.value.has(i)) continue;
+          const w = getColWidth(i);
+          if (x >= cumLeft && x < cumLeft + w) { foundCol = i; break; }
+          if (x < cumLeft) { foundCol = Math.max(0, i-1); break; }
+          cumLeft += w;
         }
         selection.endRow = foundRow;
         selection.endCol = foundCol;
@@ -3292,11 +3274,6 @@
         e.preventDefault();
       }
 
-      function handleGridScroll(e) {
-        scrollTop.value = e.target.scrollTop;
-        scrollLeft.value = e.target.scrollLeft;
-      }
-
       // Resize
       let resizingCol = null, resizingRow = null;
       let resizeStartX = 0, resizeStartY = 0, resizeStartW = 0, resizeStartH = 0;
@@ -3318,6 +3295,25 @@
         resizingCol = null;
         document.removeEventListener('mousemove', onColResize);
         document.removeEventListener('mouseup', stopColResize);
+      }
+
+      function startRowResize(e, row) {
+        e.stopPropagation();
+        resizingRow = row;
+        resizeStartY = e.clientY;
+        resizeStartH = rowHeights.value[row] || defaultRowHeight;
+        document.addEventListener('mousemove', onRowResize);
+        document.addEventListener('mouseup', stopRowResize);
+      }
+      function onRowResize(e) {
+        if (resizingRow === null) return;
+        const dh = e.clientY - resizeStartY;
+        rowHeights.value[resizingRow] = Math.max(15, resizeStartH + dh);
+      }
+      function stopRowResize() {
+        resizingRow = null;
+        document.removeEventListener('mousemove', onRowResize);
+        document.removeEventListener('mouseup', stopRowResize);
       }
 
       // Fill drag (simple implementation)
@@ -3539,11 +3535,33 @@
         isDirty.value = true;
       }
       function switchSheet(id) {
+        // 保存当前工作表的列宽/行高
+        if (activeSheet.value) {
+          activeSheet.value.colWidths = { ...colWidths.value };
+          activeSheet.value.rowHeights = { ...rowHeights.value };
+        }
         activeSheetId.value = id;
+        // 恢复新工作表的列宽/行高
+        nextTick(() => {
+          const sheet = activeSheet.value;
+          if (sheet) {
+            colWidths.value = { ...(sheet.colWidths || {}) };
+            rowHeights.value = { ...(sheet.rowHeights || {}) };
+          } else {
+            colWidths.value = {};
+            rowHeights.value = {};
+          }
+          // 重置滚动和选择
+          nextTick(() => {
+            if (gridRef.value) {
+              gridRef.value.scrollTop = 0;
+              gridRef.value.scrollLeft = 0;
+            }
+            updateViewportSize();
+          });
+        });
         selection.startRow = selection.endRow = 0;
         selection.startCol = selection.endCol = 0;
-        colWidths.value = {};
-        rowHeights.value = {};
         undoStack.value = [];
         redoStack.value = [];
         canUndo.value = false;
@@ -3698,16 +3716,25 @@
         activeSheet.value.cells = {};
         Object.assign(activeSheet.value.cells, result.data);
         activeSheet.value.name = t.name;
-        // 应用自动列宽
+        // 应用自动列宽（批量设置避免多次重渲染）
         if (result.colWidths) {
-          for (const [c, w] of Object.entries(result.colWidths)) {
-            colWidths.value[c] = w;
+          colWidths.value = { ...result.colWidths };
+          if (activeSheet.value) {
+            activeSheet.value.colWidths = { ...result.colWidths };
           }
         }
         selection.startRow = selection.endRow = 0;
         selection.startCol = selection.endCol = 0;
         updateToolbarState();
         isDirty.value = true;
+        // 重置滚动位置
+        nextTick(() => {
+          if (gridRef.value) {
+            gridRef.value.scrollTop = 0;
+            gridRef.value.scrollLeft = 0;
+          }
+          updateViewportSize();
+        });
         ElementPlus.ElMessage.success(`已加载模板: ${t.icon} ${t.name} (${result.totalRows}行数据)`);
       }
 
@@ -3730,16 +3757,23 @@
         nextTick(() => {
           Object.assign(activeSheet.value.cells, result.data);
           if (result.colWidths) {
-            for (const [c, w] of Object.entries(result.colWidths)) {
-              colWidths.value[c] = w;
-            }
+            // 重置列宽，然后批量设置新列宽
+            colWidths.value = { ...result.colWidths };
+            // 保存到sheet对象
+            newSheet.colWidths = { ...result.colWidths };
           }
           selection.startRow = selection.endRow = 0;
           selection.startCol = selection.endCol = 0;
           updateToolbarState();
           isDirty.value = true;
-          scrollTop.value = 0;
-          scrollLeft.value = 0;
+          // 重置滚动位置
+          nextTick(() => {
+            if (gridRef.value) {
+              gridRef.value.scrollTop = 0;
+              gridRef.value.scrollLeft = 0;
+            }
+            updateViewportSize();
+          });
         });
         return result;
       }
@@ -3948,12 +3982,9 @@
         } catch(e) {}
       }
 
-      // Update viewport size
+      // Update viewport size (no longer needed for virtual scroll but kept for compatibility)
       function updateViewportSize() {
-        if (gridRef.value) {
-          viewportWidth.value = gridRef.value.clientWidth - 50;
-          viewportHeight.value = gridRef.value.clientHeight - 24;
-        }
+        // No-op: removed virtual scrolling
       }
 
       // Simulate collaborator movement
@@ -4004,7 +4035,7 @@
         sheets, activeSheetId, activeSheet, selection,
         editingCell, editingValue, cellInputRef, formulaBarValue, formulaFocused,
         colWidths, rowHeights, hiddenCols, hiddenRows, frozenRow, frozenCol,
-        gridRef, scrollTop, scrollLeft, viewportWidth, viewportHeight,
+        gridRef,
         contextMenu, colorPicker, colorPalette, standardColors,
         toolbarFont, toolbarFontSize, toolbarBold, toolbarItalic, toolbarUnderline,
         toolbarFontColor, toolbarBgColor, toolbarAlign, numberFormat,
@@ -4013,13 +4044,12 @@
         collaborators,
         showTemplateDialog, showExportDialog, showChartDialog, showFormulaDialog,
         formulaSearch, fileInput, templates, formulaList, filteredFormulas,
-        defaultColWidth, defaultRowHeight,
+        defaultColWidth, defaultRowHeight, COL_COUNT, ROW_COUNT,
         // Computed
-        activeData, visibleCols, visibleRows, colPositions, rowPositions,
-        totalWidth, totalHeight, currentCellAddr, selectionStats,
+        activeData, currentCellAddr, selectionStats,
         // Functions
         getCellValue, getCellDisplay, getCellClasses, getCellStyle,
-        getCellLeft, getCellTop, isInSelection, isSelectionEnd,
+        getColWidth, getRowHeight, getCellLeft, getCellTop, isInSelection, isSelectionEnd,
         isColSelected, isRowSelected, colIndexToLetter,
         selectAll, updateToolbarState, applyFormat, toggleFormat,
         toggleFreeze, insertRow, insertCol, deleteRow, deleteCol,
@@ -4027,8 +4057,8 @@
         startEdit, confirmEdit, cancelEdit, handleEditKeydown,
         handleFormulaKeydown, moveSelection, scrollToCell,
         handleCellMouseDown, handleColMouseDown, handleRowMouseDown,
-        handleGridScroll, handleMouseUp,
-        startColResize, startFillDrag,
+        handleMouseUp,
+        startColResize, startRowResize, startFillDrag,
         hideContextMenu, showCellContextMenu, showColContextMenu, showRowContextMenu,
         showSheetContextMenu, handleContextAction,
         copySelection, pasteSelection, clearSelection,
