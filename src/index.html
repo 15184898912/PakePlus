@@ -428,6 +428,83 @@
             color: white; text-align: center;
         }
 
+        /* 图片加载和错误状态 */
+        .img-loading-container {
+            width: 100%; height: 100%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            gap: 6px;
+        }
+
+        .img-loading-spinner {
+            width: 24px; height: 24px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .img-loading-text {
+            color: rgba(255,255,255,0.9);
+            font-size: 7px;
+        }
+
+        .img-error-container {
+            width: 100%; height: 100%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            gap: 4px;
+        }
+
+        .img-error-icon {
+            font-size: 20px;
+            opacity: 0.9;
+        }
+
+        .img-error-text {
+            color: rgba(255,255,255,0.9);
+            font-size: 6px;
+        }
+
+        .slide-img-wrapper {
+            width: 100%; height: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .slide-img-wrapper img {
+            width: 100%; height: 100%;
+            object-fit: cover;
+            border-radius: 2px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .slide-img-wrapper img.loaded {
+            opacity: 1;
+        }
+
+        .retry-img-btn {
+            position: absolute;
+            bottom: 4px; right: 4px;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 6px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .retry-img-btn:hover {
+            background: rgba(0,0,0,0.7);
+        }
+
         .slide-title-text {
             font-size: 11px; color: var(--ink); text-align: center;
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -704,7 +781,8 @@
     <script>
         let state = {
             outline: null,
-            images: {},
+            images: {},           // pageNum -> image URL
+            imageStatus: {},      // pageNum -> 'loading' | 'loaded' | 'error'
             isGenerating: false,
             shouldStop: false,
             selectedSlide: null,
@@ -850,9 +928,11 @@
                 ]
             };
             state.images = {};
-            generateDemoImages();
+            state.imageStatus = {};
             renderSlides();
-            showToast('演示内容已加载（7页），可直接导出PPTX');
+            // 异步加载图片
+            generateDemoImages();
+            showToast('演示内容已加载（7页），AI配图正在加载中...');
         }
 
         function loadLongDemo() {
@@ -877,18 +957,74 @@
             pages.forEach((p, i) => p.page_number = i + 1);
             state.outline = { title: "企业数字化转型完全指南（20页示例）", pages };
             state.images = {};
-            generateDemoImages();
+            state.imageStatus = {};
             renderSlides();
-            showToast('长文档演示已加载（20页），可直接导出PPTX');
+            generateDemoImages();
+            showToast('长文档演示已加载（20页），AI配图正在加载中...');
         }
 
         function generateDemoImages() {
-            const styleKey = document.getElementById('styleSelect').value;
-            state.outline.pages.forEach(page => {
-                if (page.type === 'content') {
-                    state.images[page.page_number] = generatePlaceholderImage(page.page_number, styleKey);
+            if (!state.outline) return;
+            const contentPages = state.outline.pages.filter(p => p.type === 'content');
+            
+            // 先设置所有图片为loading状态
+            contentPages.forEach(page => {
+                const prompt = page.image_prompt || page.title;
+                const imgUrl = generateAIImageUrl(prompt, page.page_number);
+                if (imgUrl) {
+                    state.images[page.page_number] = imgUrl;
+                    state.imageStatus[page.page_number] = 'loading';
                 }
             });
+            renderSlides();
+            
+            // 并行加载图片（2并发，避免触发服务限流）
+            const queue = [...contentPages];
+            const concurrency = 2;
+            
+            async function loadWorker() {
+                while (queue.length > 0) {
+                    const page = queue.shift();
+                    const pn = page.page_number;
+                    const imgUrl = state.images[pn];
+                    if (!imgUrl) continue;
+                    
+                    // 尝试加载，最多重试2次
+                    let loaded = false;
+                    for (let attempt = 0; attempt < 3 && !loaded; attempt++) {
+                        try {
+                            let attemptUrl = imgUrl;
+                            if (attempt > 0) {
+                                const newSeed = Math.floor(Math.random() * 1000000);
+                                attemptUrl = imgUrl.replace(/seed=\d+/, 'seed=' + newSeed);
+                                state.images[pn] = attemptUrl;
+                                await sleep(500 + attempt * 1000);
+                            }
+                            
+                            await new Promise((resolve, reject) => {
+                                const timeout = setTimeout(() => reject(new Error('timeout')), 25000);
+                                const img = new Image();
+                                img.onload = () => { clearTimeout(timeout); resolve(); };
+                                img.onerror = () => { clearTimeout(timeout); reject(new Error('load error')); };
+                                img.src = attemptUrl;
+                            });
+                            state.imageStatus[pn] = 'loaded';
+                            loaded = true;
+                        } catch(e) {
+                            console.log(`演示配图 ${pn} 加载失败(尝试${attempt+1}/3):`, e.message);
+                            if (attempt === 2) {
+                                state.imageStatus[pn] = 'error';
+                            }
+                        }
+                    }
+                    
+                    renderSlides();
+                }
+            }
+            
+            for (let w = 0; w < Math.min(concurrency, contentPages.length); w++) {
+                loadWorker();
+            }
         }
 
         async function callAI(messages, maxTokens = 4000) {
@@ -1329,29 +1465,397 @@ ${deepSearchHint}
             return page;
         }
 
-        function generatePlaceholderImage(pageNum, style) {
-            const palettes = [
-                ['#6495ED', '#4169E1'], ['#90EE90', '#32CD32'], ['#FFB6C1', '#FF69B4'],
-                ['#DDA0DD', '#BA55D3'], ['#ADD8E6', '#87CEEB'], ['#FFDAB9', '#FFA07A'],
-                ['#98FB98', '#90EE90'], ['#E6E6FA', '#DDA0DD'], ['#FFFACD', '#F0E68C'],
-                ['#FFB347', '#FF8C00'], ['#87CEFA', '#4682B4'], ['#FFA07A', '#FA8072'],
-                ['#20B2AA', '#008B8B'], ['#DDA0DD', '#9370DB'], ['#F0E68C', '#BDB76B']
-            ];
-            const idx = (pageNum - 1) % palettes.length;
-            const [c1, c2] = palettes[idx];
-            const styleConfig = STYLES[style] || STYLES.business;
-            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450" viewBox="0 0 800 450">
-                <defs><linearGradient id="g${pageNum}" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" style="stop-color:${c1};stop-opacity:1"/>
-                    <stop offset="100%" style="stop-color:${c2};stop-opacity:1"/>
-                </linearGradient></defs>
-                <rect width="800" height="450" fill="url(#g${pageNum})"/>
-                <circle cx="650" cy="80" r="120" fill="rgba(255,255,255,0.15)"/>
-                <circle cx="100" cy="380" r="80" fill="rgba(255,255,255,0.1)"/>
-                <text x="400" y="220" text-anchor="middle" fill="white" font-size="48" font-family="Microsoft YaHei" font-weight="bold">第 ${pageNum} 页</text>
-                <text x="400" y="270" text-anchor="middle" fill="rgba(255,255,255,0.9)" font-size="20" font-family="Microsoft YaHei">${styleConfig.name}风格配图</text>
-            </svg>`;
-            return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+        // 常用中文关键词到英文的映射（用于改善AI图片生成效果）
+        // 注意：长词放在前面，避免部分匹配问题
+        const ZH_TO_EN_KEYWORDS = [
+            ['人工智能', 'artificial intelligence'],
+            ['机器学习', 'machine learning'],
+            ['深度学习', 'deep learning'],
+            ['云计算', 'cloud computing'],
+            ['大数据', 'big data'],
+            ['区块链', 'blockchain'],
+            ['数字化转型', 'digital transformation'],
+            ['新能源汽车', 'electric vehicles, EV'],
+            ['虚拟现实', 'virtual reality, VR'],
+            ['增强现实', 'augmented reality, AR'],
+            ['物联网', 'Internet of Things, IoT'],
+            ['互联网+', 'internet plus'],
+            ['智能制造', 'smart manufacturing'],
+            ['智慧城市', 'smart city'],
+            ['电子商务', 'e-commerce'],
+            ['社交媒体', 'social media'],
+            ['数字经济', 'digital economy'],
+            ['可持续发展', 'sustainable development'],
+            ['碳中和', 'carbon neutrality'],
+            ['数据分析', 'data analysis'],
+            ['数据可视化', 'data visualization'],
+            ['项目管理', 'project management'],
+            ['商业模式', 'business model'],
+            ['市场营销', 'marketing'],
+            ['人力资源', 'human resources'],
+            ['财务管理', 'financial management'],
+            ['供应链', 'supply chain'],
+            ['客户服务', 'customer service'],
+            ['用户体验', 'user experience, UX'],
+            ['产品设计', 'product design'],
+            ['品牌建设', 'brand building'],
+            ['团队协作', 'team collaboration'],
+            ['商务办公', 'business office'],
+            ['年终总结', 'year-end summary'],
+            ['工作总结', 'work summary'],
+            ['工作汇报', 'work report presentation'],
+            ['项目汇报', 'project presentation'],
+            ['创业计划', 'startup business plan'],
+            ['商业计划', 'business plan'],
+            ['市场分析', 'market analysis'],
+            ['行业分析', 'industry analysis'],
+            ['竞争分析', 'competitive analysis'],
+            ['风险评估', 'risk assessment'],
+            ['发展战略', 'development strategy'],
+            ['战略规划', 'strategic planning'],
+            ['产品开发', 'product development'],
+            ['技术创新', 'technology innovation'],
+            ['企业管理', 'enterprise management'],
+            ['运营管理', 'operations management'],
+            ['绩效考核', 'performance evaluation'],
+            ['培训教育', 'training education'],
+            ['在线教育', 'online education'],
+            ['医疗健康', 'healthcare medical'],
+            ['金融科技', 'fintech'],
+            ['投资分析', 'investment analysis'],
+            ['经济发展', 'economic development'],
+            ['全球市场', 'global market'],
+            ['国际商务', 'international business'],
+            ['企业文化', 'corporate culture'],
+            ['高效办公', 'efficient office work'],
+            ['现代商务', 'modern business'],
+            ['商务', 'business'],
+            ['办公', 'office'],
+            ['科技', 'technology'],
+            ['互联网', 'internet'],
+            ['数据', 'data'],
+            ['图表', 'chart, graph'],
+            ['分析', 'analysis'],
+            ['市场', 'market'],
+            ['发展', 'development'],
+            ['趋势', 'trend'],
+            ['战略', 'strategy'],
+            ['管理', 'management'],
+            ['团队', 'team'],
+            ['合作', 'collaboration'],
+            ['创新', 'innovation'],
+            ['未来', 'future'],
+            ['成功', 'success'],
+            ['增长', 'growth'],
+            ['企业', 'enterprise, company'],
+            ['公司', 'company, corporation'],
+            ['金融', 'finance'],
+            ['投资', 'investment'],
+            ['经济', 'economy, economic'],
+            ['营销', 'marketing'],
+            ['产品', 'product'],
+            ['服务', 'service'],
+            ['用户', 'user'],
+            ['客户', 'customer, client'],
+            ['设计', 'design'],
+            ['建筑', 'architecture'],
+            ['教育', 'education'],
+            ['学习', 'learning'],
+            ['医疗', 'healthcare, medical'],
+            ['健康', 'health'],
+            ['环境', 'environment'],
+            ['能源', 'energy'],
+            ['AI', 'AI'],
+            ['转型', 'transformation'],
+            ['平台', 'platform'],
+            ['生态', 'ecosystem'],
+            ['模式', 'model'],
+            ['流程', 'process'],
+            ['效率', 'efficiency'],
+            ['质量', 'quality'],
+            ['安全', 'security, safety'],
+            ['风险', 'risk'],
+            ['挑战', 'challenge'],
+            ['机遇', 'opportunity'],
+            ['方案', 'solution'],
+            ['应用', 'application'],
+            ['场景', 'scenario'],
+            ['技术', 'technology'],
+            ['系统', 'system'],
+            ['网络', 'network'],
+            ['手机', 'smartphone, mobile'],
+            ['电脑', 'computer, laptop'],
+            ['会议', 'meeting, conference'],
+            ['演讲', 'presentation, speech'],
+            ['报告', 'report'],
+            ['研究', 'research'],
+            ['项目', 'project'],
+            ['计划', 'planning'],
+            ['目标', 'goal, objective'],
+            ['成果', 'achievement, result'],
+            ['价值', 'value'],
+            ['愿景', 'vision'],
+            ['使命', 'mission'],
+            ['文化', 'culture'],
+            ['品牌', 'brand'],
+            ['竞争', 'competition'],
+            ['中国', 'China, Chinese'],
+            ['全球', 'global'],
+            ['国际', 'international'],
+            ['世界', 'world, global'],
+            ['现代', 'modern'],
+            ['简约', 'minimalist'],
+            ['专业', 'professional'],
+            ['高端', 'premium, high-end'],
+            ['汽车', 'automobile, car, vehicle'],
+            ['新', 'new'],
+            ['总结', 'summary'],
+            ['汇报', 'presentation, report'],
+            ['智能', 'smart, intelligent'],
+            ['数字', 'digital'],
+            ['云', 'cloud'],
+            ['电商', 'e-commerce']
+        ];
+
+        // 将中文提示词优化为英文（Pollinations对英文提示效果更好）
+        function optimizePromptForImage(prompt) {
+            if (!prompt || !prompt.trim()) return '';
+            let text = prompt.trim();
+            
+            // 检测是否包含中文字符
+            const hasChinese = /[\u4e00-\u9fa5]/.test(text);
+            
+            if (hasChinese) {
+                // 在中英文边界处添加空格，确保英文和中文之间有分隔
+                text = text.replace(/([a-zA-Z0-9])([\u4e00-\u9fa5])/g, '$1 $2');
+                text = text.replace(/([\u4e00-\u9fa5])([a-zA-Z0-9])/g, '$1 $2');
+                
+                // 替换中文关键词为英文（长词优先，避免重复替换）
+                let optimized = text;
+                const replaced = new Set(); // 记录已替换位置，避免重复
+                
+                for (const [zh, en] of ZH_TO_EN_KEYWORDS) {
+                    // 使用全局替换，但确保不重叠替换
+                    const regex = new RegExp(zh.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+                    optimized = optimized.replace(regex, ' ' + en + ' ');
+                }
+                
+                // 移除剩余中文字符
+                optimized = optimized.replace(/[\u4e00-\u9fa5]/g, ' ');
+                // 清理多余空格和特殊字符
+                optimized = optimized
+                    .replace(/[^\w\s,.\-–—:()&+]/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                
+                // 如果优化后太短或主要是无意义词汇，使用通用英文提示
+                if (optimized.length < 5 || optimized.split(/\s+/).length < 2) {
+                    optimized = 'professional business scene, modern office, corporate atmosphere, professional lighting';
+                }
+                return optimized;
+            } else {
+                // 英文提示词，直接清理
+                return text
+                    .replace(/[^\w\s,.\-–—:()&+]/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+            }
+        }
+
+        // 生成真实AI图片URL - 使用Pollinations.ai免费服务（无需API密钥）
+        function generateAIImageUrl(prompt, pageNum, width = 800, height = 600) {
+            const optimizedPrompt = optimizePromptForImage(prompt);
+            if (!optimizedPrompt) {
+                return null;
+            }
+            // 添加风格增强词
+            const styleEnhance = 'professional photography, high quality, detailed, realistic, 4k, beautiful lighting, sharp focus, vibrant colors';
+            const fullPrompt = encodeURIComponent(optimizedPrompt + ', ' + styleEnhance);
+            // 使用seed确保同一页每次相同（用pageNum作为seed基础）
+            const seed = pageNum * 12345 + 7;
+            return `https://image.pollinations.ai/prompt/${fullPrompt}?width=${width}&height=${height}&nologo=true&seed=${seed}&model=flux`;
+        }
+
+        // 重新生成单张图片（用于重试）
+        function regenerateSingleImage(pageNum) {
+            if (!state.outline) return;
+            const page = state.outline.pages.find(p => p.page_number === pageNum);
+            if (!page) return;
+            
+            const prompt = page.image_prompt || page.title;
+            // 使用随机seed生成新图片
+            const optimizedPrompt = optimizePromptForImage(prompt);
+            if (!optimizedPrompt) return;
+            
+            const styleEnhance = 'professional photography, high quality, detailed, realistic, 4k, beautiful lighting, sharp focus, vibrant colors';
+            const fullPrompt = encodeURIComponent(optimizedPrompt + ', ' + styleEnhance);
+            const seed = Math.floor(Math.random() * 1000000);
+            const newUrl = `https://image.pollinations.ai/prompt/${fullPrompt}?width=800&height=600&nologo=true&seed=${seed}&model=flux`;
+            
+            state.images[pageNum] = newUrl;
+            state.imageStatus[pageNum] = 'loading';
+            renderSlides();
+            
+            // 预加载图片（不设置crossOrigin，避免ORB错误影响预览显示）
+            const img = new Image();
+            img.onload = () => {
+                state.imageStatus[pageNum] = 'loaded';
+                renderSlides();
+                showToast(`第${pageNum}页配图已重新生成`);
+            };
+            img.onerror = () => {
+                state.imageStatus[pageNum] = 'error';
+                renderSlides();
+                showToast(`第${pageNum}页配图生成失败，请重试`, 'error');
+            };
+            img.src = newUrl;
+        }
+
+        // 图片加载成功回调（用于内联onload）
+        function onThumbImgLoad(imgEl, pageNum) {
+            imgEl.classList.add('loaded');
+            state.imageStatus[pageNum] = 'loaded';
+        }
+
+        // 图片加载失败回调（用于内联onerror）
+        function onThumbImgError(containerEl, pageNum) {
+            state.imageStatus[pageNum] = 'error';
+            containerEl.innerHTML = `<div class="img-error-container"><div class="img-error-icon">🖼️</div><div class="img-error-text">加载失败</div></div><button class="retry-img-btn" onclick="event.stopPropagation();regenerateSingleImage(${pageNum})">重试</button>`;
+        }
+
+        // 预加载图片并返回blob（用于PPTX导出）
+        async function fetchImageAsBlob(url, timeoutMs = 15000) {
+            // 先尝试使用fetch API直接获取
+            try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), timeoutMs);
+                const response = await fetch(url, { signal: controller.signal, mode: 'cors' });
+                clearTimeout(timeout);
+                if (response.ok) {
+                    const blob = await response.blob();
+                    if (blob && blob.size > 0) return blob;
+                }
+            } catch(fetchErr) {
+                console.log('fetch方式下载失败，尝试Image+canvas方式:', fetchErr.message);
+            }
+            
+            // 降级方案：使用Image + canvas
+            return new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => reject(new Error('图片加载超时')), timeoutMs);
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => {
+                    clearTimeout(timeout);
+                    try {
+                        // 将图片绘制到canvas再转为blob
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.naturalWidth || 800;
+                        canvas.height = img.naturalHeight || 600;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0);
+                        canvas.toBlob((blob) => {
+                            if (blob) resolve(blob);
+                            else reject(new Error('图片转换失败'));
+                        }, 'image/jpeg', 0.9);
+                    } catch(e) {
+                        reject(e);
+                    }
+                };
+                img.onerror = () => {
+                    clearTimeout(timeout);
+                    reject(new Error('图片加载失败'));
+                };
+                img.src = url;
+            });
+        }
+
+        // 批量生成/预加载所有页面图片
+        async function generateAllImages(outline, style, onProgress) {
+            const contentPages = outline.pages.filter(p => p.type === 'content');
+            const total = contentPages.length;
+            let loaded = 0;
+            let successCount = 0;
+            let failCount = 0;
+            const imgMap = {};
+            const imgStatus = {};
+            
+            // 并行加载图片（并发数2，避免触发服务限流）
+            const concurrency = 2;
+            const queue = [...contentPages];
+            
+            async function loadSingleImage(page) {
+                const pageNum = page.page_number;
+                const prompt = page.image_prompt || page.title;
+                const imgUrl = generateAIImageUrl(prompt, pageNum);
+                
+                if (!imgUrl) {
+                    imgStatus[pageNum] = 'error';
+                    return;
+                }
+                
+                imgMap[pageNum] = imgUrl;
+                imgStatus[pageNum] = 'loading';
+                state.images = { ...imgMap };
+                state.imageStatus = { ...imgStatus };
+                renderSlides(); // 显示加载状态
+                
+                // 尝试加载，最多重试2次
+                let loaded = false;
+                for (let attempt = 0; attempt < 3 && !loaded; attempt++) {
+                    try {
+                        let attemptUrl = imgUrl;
+                        if (attempt > 0) {
+                            // 重试时使用不同的seed
+                            const newSeed = Math.floor(Math.random() * 1000000);
+                            attemptUrl = imgUrl.replace(/seed=\d+/, 'seed=' + newSeed);
+                            imgMap[pageNum] = attemptUrl;
+                            state.images = { ...imgMap };
+                            await sleep(500 + attempt * 1000); // 重试前等待
+                        }
+                        
+                        await new Promise((resolve, reject) => {
+                            const timeout = setTimeout(() => reject(new Error('timeout')), 25000);
+                            const img = new Image();
+                            // 不设置crossOrigin，避免ORB阻止预览显示
+                            img.onload = () => { clearTimeout(timeout); resolve(); };
+                            img.onerror = () => { clearTimeout(timeout); reject(new Error('load error')); };
+                            img.src = attemptUrl;
+                        });
+                        imgStatus[pageNum] = 'loaded';
+                        successCount++;
+                        loaded = true;
+                    } catch(e) {
+                        console.log(`第${pageNum}页图片加载失败(尝试${attempt+1}/3):`, e.message);
+                        if (attempt === 2) {
+                            imgStatus[pageNum] = 'error';
+                            failCount++;
+                        }
+                    }
+                }
+                
+                state.images = { ...imgMap };
+                state.imageStatus = { ...imgStatus };
+                renderSlides(); // 更新显示状态
+            }
+            
+            async function worker() {
+                while (queue.length > 0) {
+                    if (state.shouldStop) return;
+                    const page = queue.shift();
+                    await loadSingleImage(page);
+                    loaded++;
+                    if (onProgress) onProgress(loaded, total);
+                }
+            }
+            
+            const workers = [];
+            for (let w = 0; w < Math.min(concurrency, total); w++) {
+                workers.push(worker());
+            }
+            await Promise.all(workers);
+            
+            console.log(`配图生成完成: 成功${successCount}张, 失败${failCount}张`);
+            return { imgMap, imgStatus, successCount, failCount };
         }
 
         async function startGeneration() {
@@ -1379,6 +1883,7 @@ ${deepSearchHint}
                 updateProgress(15, `大纲生成完成（${outline.pages.length}页），开始撰写详细内容...`);
                 state.outline = outline;
                 state.images = {};
+                state.imageStatus = {};
                 renderSlides();
 
                 const contentPages = outline.pages.filter(p => p.type === 'content');
@@ -1391,22 +1896,38 @@ ${deepSearchHint}
                     
                     if (page.type === 'content') {
                         const contentIdx = contentPages.indexOf(page);
-                        const progress = 15 + Math.floor((contentIdx / totalContent) * 75);
+                        const progress = 15 + Math.floor((contentIdx / totalContent) * 65);
                         updateProgress(progress, `正在撰写第 ${i+1}/${outline.pages.length} 页：${page.title.substring(0,15)}...`);
                         
                         outline.pages[i] = await enhancePageDeep(page, topic, style, language, depth, allTitles);
-                        
-                        state.images[page.page_number] = generatePlaceholderImage(page.page_number, style);
                         state.outline = outline;
                         renderSlides();
                     }
                 }
 
-                updateProgress(95, '正在完成最后整理...');
+                // 内容生成完成后，开始生成真实AI配图
+                updateProgress(82, '内容已完成，正在生成AI配图（真实彩图）...');
+                const imgResult = await generateAllImages(outline, style, (loaded, total) => {
+                    const imgProgress = 82 + Math.floor((loaded / total) * 16);
+                    updateProgress(imgProgress, `正在加载配图 ${loaded}/${total}...`);
+                });
+
+                updateProgress(98, '正在完成最后整理...');
                 await sleep(300);
-                updateProgress(100, '生成完成！可点击"导出PPTX"下载真实PPT文件');
+                
+                const { successCount, failCount } = imgResult;
+                let completeMsg = '生成完成！';
+                if (successCount > 0 && failCount === 0) {
+                    completeMsg = `生成完成！共${outline.pages.length}页，${successCount}张AI配图全部加载成功`;
+                } else if (successCount > 0 && failCount > 0) {
+                    completeMsg = `生成完成！共${outline.pages.length}页，${successCount}张配图成功，${failCount}张失败（可点击重试）`;
+                } else {
+                    completeMsg = `生成完成！共${outline.pages.length}页，配图加载失败，可点击重试按钮重新生成`;
+                }
+                
+                updateProgress(100, completeMsg);
                 renderSlides();
-                showToast(`PPT生成完成！共${outline.pages.length}页，点击导出PPTX下载`);
+                showToast(completeMsg);
                 setTimeout(() => setGeneratingState(false), 500);
 
             } catch (e) {
@@ -1499,7 +2020,23 @@ ${deepSearchHint}
             }
             const contentLines = String(page.content||'').split('\n').slice(0,5);
             const imgSrc = state.images[page.page_number] || '';
-            return `<div class="slide-preview-content" style="background:${bgHex};"><div class="slide-preview-content-header" style="background:${primaryHex};"><span>${escapeHtml((page.title||'').substring(0,14))}</span><span>${page.page_number}</span></div><div style="display:flex;gap:4px;height:calc(100% - 20px);"><div style="flex:1;font-size:6px;line-height:1.3;color:${textHex};">${contentLines.map(l=>`<div style="margin:1px 0;">• ${escapeHtml(l.substring(0,22))}</div>`).join('')}</div>${imgSrc?`<div style="width:40%;"><img src="${imgSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:2px;"></div>`:''}</div></div>`;
+            const imgStatus = state.imageStatus[page.page_number] || '';
+            
+            // 渲染图片区域
+            let imgHtml = '';
+            if (imgSrc || imgStatus === 'loading') {
+                if (imgStatus === 'loading') {
+                    imgHtml = `<div style="width:40%;"><div class="img-loading-container"><div class="img-loading-spinner"></div><div class="img-loading-text">AI绘图中...</div></div></div>`;
+                } else if (imgStatus === 'error') {
+                    imgHtml = `<div style="width:40%;position:relative;" id="imgwrap-${page.page_number}"><div class="img-error-container"><div class="img-error-icon">🖼️</div><div class="img-error-text">加载失败</div></div><button class="retry-img-btn" onclick="event.stopPropagation();regenerateSingleImage(${page.page_number})">重试</button></div>`;
+                } else {
+                    // loaded 或未知状态，显示图片并附带回调
+                    const loadedClass = imgStatus === 'loaded' ? ' loaded' : '';
+                    imgHtml = `<div style="width:40%;position:relative;" class="img-container" id="imgwrap-${page.page_number}"><div class="slide-img-wrapper"><img src="${imgSrc}" class="${loadedClass}" onload="onThumbImgLoad(this,${page.page_number})" onerror="onThumbImgError(this.parentElement.parentElement,${page.page_number})"></div></div>`;
+                }
+            }
+            
+            return `<div class="slide-preview-content" style="background:${bgHex};"><div class="slide-preview-content-header" style="background:${primaryHex};"><span>${escapeHtml((page.title||'').substring(0,14))}</span><span>${page.page_number}</span></div><div style="display:flex;gap:4px;height:calc(100% - 20px);"><div style="flex:1;font-size:6px;line-height:1.3;color:${textHex};">${contentLines.map(l=>`<div style="margin:1px 0;">• ${escapeHtml(l.substring(0,22))}</div>`).join('')}</div>${imgHtml}</div></div>`;
         }
 
         function escapeHtml(text) {
@@ -1510,13 +2047,23 @@ ${deepSearchHint}
 
         function deleteSlide(num) {
             if (!confirm(`确定删除第 ${num} 页吗？`)) return;
-            const pages = state.outline.pages.filter(p => p.page_number !== num);
-            pages.forEach((p,i) => p.page_number = i+1);
-            state.outline.pages = pages;
+            const oldPages = [...state.outline.pages];
+            const pages = oldPages.filter(p => p.page_number !== num);
+            // 重新编号并重新映射图片
             const newImgs = {};
-            pages.forEach(p => { if(state.images[p.page_number]) newImgs[p.page_number] = state.images[p.page_number]; });
+            const newImgStatus = {};
+            pages.forEach((p, i) => {
+                const oldNum = p.page_number;
+                const newNum = i + 1;
+                p.page_number = newNum;
+                if (state.images[oldNum]) newImgs[newNum] = state.images[oldNum];
+                if (state.imageStatus[oldNum]) newImgStatus[newNum] = state.imageStatus[oldNum];
+            });
+            state.outline.pages = pages;
             state.images = newImgs;
+            state.imageStatus = newImgStatus;
             if (state.selectedSlide === num) state.selectedSlide = null;
+            else if (state.selectedSlide > num) state.selectedSlide--;
             renderSlides();
             showToast('页面已删除');
         }
@@ -1529,16 +2076,31 @@ ${deepSearchHint}
                 page_number: newNum, type: 'content',
                 title: isZh ? '新页面' : 'New Page',
                 content: isZh ? '请在此输入页面内容' : 'Enter content here',
-                image_prompt: ''
+                image_prompt: isZh ? '商务办公场景' : 'business office scene'
             });
-            state.images[newNum] = generatePlaceholderImage(newNum, document.getElementById('styleSelect').value);
+            const imgUrl = generateAIImageUrl(isZh ? '商务办公场景，简约现代' : 'modern business office', newNum);
+            if (imgUrl) {
+                state.images[newNum] = imgUrl;
+                state.imageStatus[newNum] = 'loading';
+                // 异步加载图片（不设置crossOrigin避免ORB错误）
+                const tmpImg = new Image();
+                tmpImg.onload = () => {
+                    state.imageStatus[newNum] = 'loaded';
+                    renderSlides();
+                };
+                tmpImg.onerror = () => {
+                    state.imageStatus[newNum] = 'error';
+                    renderSlides();
+                };
+                tmpImg.src = imgUrl;
+            }
             renderSlides();
         }
 
         function newPPT() {
             if (state.isGenerating) { showToast('正在生成中，请先停止','error'); return; }
             if (state.outline && !confirm('确定新建PPT吗？当前内容将清空。')) return;
-            state.outline = null; state.images = {}; state.selectedSlide = null;
+            state.outline = null; state.images = {}; state.imageStatus = {}; state.selectedSlide = null;
             document.getElementById('topicInput').value = '';
             document.getElementById('descInput').value = '';
             document.getElementById('pagesInput').value = 10;
@@ -1548,7 +2110,7 @@ ${deepSearchHint}
 
         function clearPPT() {
             if (!confirm('确定清空当前PPT吗？')) return;
-            state.outline = null; state.images = {};
+            state.outline = null; state.images = {}; state.imageStatus = {};
             renderSlides();
         }
 
@@ -1587,6 +2149,48 @@ ${deepSearchHint}
                 
                 const pages = state.outline.pages;
                 const total = pages.length;
+                
+                // ====== 先并行预下载所有页面的AI配图 ======
+                updateProgress(86, '正在下载AI配图（真实彩图）...');
+                const imageBlobs = {}; // pageNum -> ArrayBuffer
+                const contentPageNums = pages.filter(p => p.type === 'content').map(p => p.page_number);
+                let downloaded = 0;
+                const totalImgs = contentPageNums.length;
+                
+                // 并行下载（并发数2，避免触发服务限流）
+                const downloadQueue = [...contentPageNums];
+                const downloadConcurrency = 2;
+                
+                async function downloadWorker() {
+                    while (downloadQueue.length > 0) {
+                        const pn = downloadQueue.shift();
+                        const imgUrl = state.images[pn];
+                        
+                        // 只下载成功加载过的图片，或者URL存在且状态不是error
+                        if (imgUrl && (imgUrl.startsWith('http://') || imgUrl.startsWith('https://'))) {
+                            // 如果图片状态是error，跳过（避免在导出时重复失败）
+                            if (state.imageStatus[pn] !== 'error') {
+                                try {
+                                    const blob = await fetchImageAsBlob(imgUrl, 15000);
+                                    imageBlobs[pn] = await blob.arrayBuffer();
+                                } catch(imgErr) {
+                                    console.log(`配图 ${pn} 下载失败，跳过:`, imgErr.message);
+                                }
+                            }
+                        }
+                        
+                        downloaded++;
+                        updateProgress(86 + Math.floor((downloaded / Math.max(totalImgs,1)) * 7), `下载配图 ${downloaded}/${totalImgs}...`);
+                    }
+                }
+                
+                const downloadWorkers = [];
+                for (let w = 0; w < Math.min(downloadConcurrency, totalImgs); w++) {
+                    downloadWorkers.push(downloadWorker());
+                }
+                await Promise.all(downloadWorkers);
+                
+                updateProgress(93, '正在生成PPTX幻灯片...');
                 
                 for (let idx = 0; idx < total; idx++) {
                     const page = pages[idx];
@@ -1678,12 +2282,18 @@ ${deepSearchHint}
                             const content = String(page.content || '');
                             const lines = content.split('\n').filter(l => l.trim());
                             
-                            // 根据内容量自动调整字体大小
+                            // 判断是否有图片
+                            const hasImage = !!imageBlobs[page.page_number];
+                            const imgWidth = hasImage ? 4.8 : 0;
+                            const textWidth = hasImage ? 7.2 : 12.3;
+                            const textX = 0.5;
+                            
+                            // 根据内容量和是否有图片，自动调整字体大小
                             let fontSize = 13;
-                            if (lines.length > 6) fontSize = 12;
-                            if (lines.length > 9) fontSize = 11;
-                            if (lines.length > 12) fontSize = 10;
-                            if (lines.length > 16) fontSize = 9;
+                            const maxLines = hasImage ? 10 : 16;
+                            if (lines.length > 5) fontSize = 12;
+                            if (lines.length > 8) fontSize = 11;
+                            if (lines.length > maxLines) fontSize = hasImage ? 10 : 9;
                             
                             // 构建带项目符号的文本数组
                             const textRuns = [];
@@ -1701,7 +2311,7 @@ ${deepSearchHint}
                                             breakLine: true,
                                             fontSize: fontSize,
                                             color: '333333',
-                                            paraSpaceAfter: 4
+                                            paraSpaceAfter: hasImage ? 3 : 4
                                         }
                                     });
                                 }
@@ -1709,11 +2319,24 @@ ${deepSearchHint}
                             
                             if (textRuns.length > 0) {
                                 slide.addText(textRuns, {
-                                    x: 0.5, y: 1.1, w: 12.3, h: 6.0,
+                                    x: textX, y: 1.1, w: textWidth, h: 6.0,
                                     valign: 'top',
                                     margin: 8,
                                     lineSpacingMultiple: 1.15
                                 });
+                            }
+                            
+                            // 插入AI配图（右侧）
+                            if (hasImage) {
+                                try {
+                                    slide.addImage({
+                                        data: imageBlobs[page.page_number],
+                                        x: 8.0, y: 1.2, w: 4.9, h: 5.7,
+                                        rounding: true
+                                    });
+                                } catch(imgErr) {
+                                    console.log('图片插入失败:', imgErr);
+                                }
                             }
                         }
                     } catch(pageErr) {
