@@ -1732,16 +1732,70 @@ ${deepSearchHint}
                     }
                 }
                 
-                updateProgress(98, '正在保存PPTX...');
+                updateProgress(98, '正在保存PPTX文件...');
                 const fileName = state.outline.title.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').substring(0, 80) + '.pptx';
                 
+                // 桌面打包环境兼容的导出方式：先输出为ArrayBuffer/Blob，再手动触发下载
+                let pptxBlob = null;
+                let saveSuccess = false;
+                
                 try {
-                    await pptx.writeFile({ fileName: fileName });
-                    showToast('PPTX文件已生成，请查看下载文件夹！');
-                    updateProgress(100, 'PPTX导出完成！');
+                    // 方法1：尝试输出为Blob（兼容性最好，适合PakePlus/Electron/Tauri等打包环境）
+                    try {
+                        pptxBlob = await pptx.writeFile({ outputType: 'blob' });
+                        console.log('PPTX生成为Blob成功，大小:', pptxBlob.size, 'bytes');
+                    } catch(blobErr) {
+                        console.log('Blob输出失败，尝试ArrayBuffer方式:', blobErr);
+                        // 方法2：输出为ArrayBuffer，再包装为Blob
+                        try {
+                            const arrayBuffer = await pptx.writeFile({ outputType: 'arraybuffer' });
+                            pptxBlob = new Blob([arrayBuffer], { 
+                                type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' 
+                            });
+                            console.log('PPTX生成ArrayBuffer成功，Blob大小:', pptxBlob.size, 'bytes');
+                        } catch(abErr) {
+                            console.log('ArrayBuffer也失败，尝试base64方式:', abErr);
+                            // 方法3：输出为base64再转换
+                            try {
+                                const base64 = await pptx.writeFile({ outputType: 'base64' });
+                                const binary = atob(base64);
+                                const bytes = new Uint8Array(binary.length);
+                                for (let i = 0; i < binary.length; i++) {
+                                    bytes[i] = binary.charCodeAt(i);
+                                }
+                                pptxBlob = new Blob([bytes], {
+                                    type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+                                });
+                                console.log('PPTX生成base64成功，Blob大小:', pptxBlob.size, 'bytes');
+                            } catch(b64Err) {
+                                console.error('所有二进制输出方式都失败:', b64Err);
+                            }
+                        }
+                    }
+                    
+                    if (pptxBlob && pptxBlob.size > 1000) { // 正常PPTX至少几KB
+                        saveSuccess = await downloadBlob(pptxBlob, fileName);
+                        if (saveSuccess) {
+                            showToast('PPTX文件已开始下载，请查看下载文件夹！');
+                            updateProgress(100, 'PPTX导出完成！');
+                        }
+                    }
                 } catch(writeErr) {
-                    console.error('writeFile failed:', writeErr);
-                    showToast('PPTX保存失败: ' + writeErr.message, 'error');
+                    console.error('PPTX生成过程出错:', writeErr);
+                }
+                
+                // 方法4：如果以上方法都失败，最后尝试PptxGenJS默认的writeFile方式
+                if (!saveSuccess) {
+                    try {
+                        await pptx.writeFile({ fileName: fileName });
+                        saveSuccess = true;
+                        showToast('PPTX文件已生成，请查看下载文件夹！');
+                        updateProgress(100, 'PPTX导出完成！');
+                    } catch(writeErr2) {
+                        console.error('所有保存方式都失败:', writeErr2);
+                        showToast('PPTX导出遇到问题，正在为您切换为HTML格式...', 'error');
+                        setTimeout(() => exportAsHTML(), 1200);
+                    }
                 }
                 
             } catch (e) {
@@ -1750,15 +1804,95 @@ ${deepSearchHint}
             }
         }
 
-        function exportAsHTML() {
-            showToast('正在导出HTML备用格式...');
+        // 通用可靠下载函数（兼容浏览器、PakePlus/Tauri/Electron等桌面打包环境）
+        async function downloadBlob(blob, fileName) {
+            // 检测是否在Tauri/PakePlus环境
+            const isTauri = typeof window !== 'undefined' && window.__TAURI__;
+            
+            // 方法0：如果在Tauri/PakePlus环境，优先使用原生文件保存对话框
+            if (isTauri) {
+                try {
+                    console.log('检测到Tauri/PakePlus环境，使用原生文件保存对话框');
+                    const { save } = window.__TAURI__.dialog;
+                    const { writeBinaryFile } = window.__TAURI__.fs;
+                    
+                    // 转换Blob为Uint8Array
+                    const arrayBuffer = await blob.arrayBuffer();
+                    const uint8Array = new Uint8Array(arrayBuffer);
+                    
+                    // 弹出原生保存对话框
+                    const filePath = await save({
+                        defaultPath: fileName,
+                        filters: [{
+                            name: fileName.endsWith('.pptx') ? 'PowerPoint演示文稿' : 
+                                  fileName.endsWith('.html') ? 'HTML网页' : '文件',
+                            extensions: [fileName.split('.').pop()]
+                        }]
+                    });
+                    
+                    if (filePath) {
+                        await writeBinaryFile(filePath, uint8Array);
+                        console.log('文件已通过Tauri API保存到:', filePath);
+                        return true;
+                    } else {
+                        console.log('用户取消了保存对话框，尝试浏览器下载方式');
+                    }
+                } catch(tauriErr) {
+                    console.log('Tauri保存API失败，回退到浏览器下载:', tauriErr);
+                }
+            }
+            
+            // 方法1：标准浏览器Blob下载方式（兼容性最好）
+            try {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                
+                // 触发点击
+                a.click();
+                
+                // 延迟清理
+                setTimeout(() => {
+                    try {
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                    } catch(e) {}
+                }, 500);
+                
+                return true;
+            } catch(e) {
+                console.error('标准下载方式失败:', e);
+            }
+            
+            // 方法2：备用方案 - window.open
+            try {
+                const url = URL.createObjectURL(blob);
+                window.open(url, '_blank');
+                return true;
+            } catch(e2) {
+                console.error('备用下载方式也失败:', e2);
+                return false;
+            }
+        }
+
+        async function exportAsHTML() {
+            showToast('正在导出HTML格式...');
             const styleKey = document.getElementById('styleSelect').value;
             const style = STYLES[styleKey] || STYLES.business;
             let slidesHtml = '';
-            state.outline.pages.forEach(page => { slidesHtml += `<div class="exslide" style="page-break-after:always; width:1280px; height:720px; margin:0 auto 20px; background:${style.bgHex}; position:relative; overflow:hidden; font-family:'Microsoft YaHei'; box-shadow:0 4px 20px rgba(0,0,0,0.3);">${renderExportSlide(page, style)}</div>`; });
-            const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escapeHtml(state.outline.title)}</title><style>body{margin:0;padding:20px;background:#333;font-family:'Microsoft YaHei';}</style></head><body>${slidesHtml}<div style="text-align:center;color:#999;padding:20px;"><p>按Ctrl+P可打印或保存为PDF</p></div></body></html>`;
+            state.outline.pages.forEach(page => { slidesHtml += `<div class="exslide" style="page-break-after:always; width:1280px; height:720px; margin:0 auto 20px; background:${style.bgHex}; position:relative; overflow:hidden; font-family:'Microsoft YaHei','Microsoft YaHei UI','SimHei',sans-serif; box-shadow:0 4px 20px rgba(0,0,0,0.3);">${renderExportSlide(page, style)}</div>`; });
+            const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escapeHtml(state.outline.title)}</title><style>body{margin:0;padding:20px;background:#333;font-family:'Microsoft YaHei','Microsoft YaHei UI','SimHei',sans-serif;}</style></head><body>${slidesHtml}<div style="text-align:center;color:#999;padding:20px;"><p>按Ctrl+P可打印或保存为PDF</p></div></body></html>`;
             const blob = new Blob([html], {type:'text/html;charset=utf-8'});
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = state.outline.title.replace(/[<>:"/\\|?*]/g,'_')+'.html'; a.click();
+            const fileName = state.outline.title.replace(/[<>:"/\\|?*\x00-\x1f]/g,'_').substring(0,80)+'.html';
+            const ok = await downloadBlob(blob, fileName);
+            if (ok) {
+                showToast('HTML文件已开始下载！');
+            } else {
+                showToast('导出失败，请重试', 'error');
+            }
         }
 
         function renderExportSlide(page, style) {
