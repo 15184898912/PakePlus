@@ -184,9 +184,9 @@ textarea { resize:vertical; min-height:70px; }
         <textarea id="descInput" placeholder="请输入更详细的PPT内容描述..."></textarea>
       </div>
       <div class="section">
-        <label>PPT页数（1-1000页）</label>
+        <label>PPT页数（1-500页支持自定义）</label>
         <div class="page-slider">
-          <input type="range" id="pageSlider" min="5" max="500" value="20" oninput="updatePageVal(this.value)">
+          <input type="range" id="pageSlider" min="1" max="500" value="20" oninput="updatePageVal(this.value)">
           <span class="page-val" id="pageValue">20</span>
         </div>
         <div class="page-btns">
@@ -235,18 +235,24 @@ textarea { resize:vertical; min-height:70px; }
 <div class="modal-overlay" id="settingsModal">
   <div class="modal">
     <h3>API设置</h3>
-    <div class="form-group"><label>API Key</label><input type="text" id="apiKey" placeholder="sk-..."></div>
-    <div class="form-group"><label>API地址</label><input type="text" id="apiBase" value="https://api.openai.com/v1"></div>
+    <p style="font-size:12px;color:#22c55e;margin-bottom:12px;">✓ 配置将自动永久保存在本机浏览器中，下次打开无需重新配置</p>
+    <div class="form-group"><label>API Key</label><input type="password" id="apiKey" placeholder="sk-...（输入后自动保存）"></div>
+    <div class="form-group"><label>API地址</label><input type="text" id="apiBase" value="https://api.openai.com/v1" placeholder="https://api.openai.com/v1"></div>
     <div class="form-group"><label>模型</label>
       <select id="model">
         <option value="gpt-4o">gpt-4o</option>
-        <option value="gpt-4o-mini">gpt-4o-mini</option>
+        <option value="gpt-4o-mini">gpt-4o-mini（推荐，更快更省）</option>
         <option value="deepseek-chat">deepseek-chat</option>
+        <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
       </select>
+    </div>
+    <div class="form-group" style="font-size:12px;color:#6b7280;">
+      <p style="margin:4px 0;">支持OpenAI、DeepSeek等兼容OpenAI格式的API</p>
+      <p style="margin:4px 0;">API Key仅保存在您本地浏览器，不会上传到任何服务器</p>
     </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal('settingsModal')">取消</button>
-      <button class="btn-save" onclick="saveSettings()">保存</button>
+      <button class="btn-save" onclick="saveSettings()">保存配置</button>
     </div>
   </div>
 </div>
@@ -274,14 +280,67 @@ const TEMPLATES = [
 ];
 let selectedTpl = 1;
 let currentOutline = null;
-let config = { apiKey:'', apiBase:'https://api.openai.com/v1', model:'gpt-4o' };
+// 默认配置
+const defaultConfig = { apiKey:'', apiBase:'https://api.openai.com/v1', model:'gpt-4o' };
+let config = { ...defaultConfig };
 
 function loadConfig() {
-  const s = localStorage.getItem('aippt_config');
-  if (s) { try { config = JSON.parse(s); } catch(e){} }
-  document.getElementById('apiKey').value = config.apiKey||'';
-  document.getElementById('apiBase').value = config.apiBase||'https://api.openai.com/v1';
-  document.getElementById('model').value = config.model||'gpt-4o';
+  try {
+    const s = localStorage.getItem('aippt_config');
+    if (s) {
+      const saved = JSON.parse(s);
+      // 合并保存的配置和默认值，确保新增字段有默认值
+      config = { ...defaultConfig, ...saved };
+    }
+  } catch(e) {
+    console.error('加载配置失败:', e);
+    config = { ...defaultConfig };
+  }
+  // 安全填充表单（确保元素存在）
+  const apiKeyEl = document.getElementById('apiKey');
+  const apiBaseEl = document.getElementById('apiBase');
+  const modelEl = document.getElementById('model');
+  if (apiKeyEl) apiKeyEl.value = config.apiKey || '';
+  if (apiBaseEl) apiBaseEl.value = config.apiBase || defaultConfig.apiBase;
+  if (modelEl) modelEl.value = config.model || defaultConfig.model;
+  // 更新API按钮状态提示
+  updateApiStatus();
+}
+
+function updateApiStatus() {
+  const btn = document.querySelector('button[onclick="showSettings()"]');
+  if (btn) {
+    if (config.apiKey && config.apiKey.length > 5) {
+      btn.textContent = 'API已配置 ✓';
+      btn.style.color = '#22c55e';
+      btn.title = 'API Key已保存，当前模型：' + (config.model||'gpt-4o');
+    } else {
+      btn.textContent = 'API设置';
+      btn.style.color = '';
+      btn.title = '点击配置API Key获得AI生成内容（配置一次永久保存）';
+    }
+  }
+}
+
+function saveSettings() {
+  const apiKey = document.getElementById('apiKey').value.trim();
+  const apiBase = document.getElementById('apiBase').value.trim() || defaultConfig.apiBase;
+  const model = document.getElementById('model').value || defaultConfig.model;
+  
+  config = { apiKey, apiBase, model };
+  
+  try {
+    localStorage.setItem('aippt_config', JSON.stringify(config));
+    closeModal('settingsModal');
+    updateApiStatus();
+    if (apiKey) {
+      showToast('API配置已永久保存，下次打开自动加载 ✓', 'success');
+    } else {
+      showToast('已清除API配置', 'info');
+    }
+  } catch(e) {
+    showToast('保存失败：' + e.message, 'error');
+  }
 }
 
 function renderTemplates() {
@@ -293,18 +352,18 @@ function renderTemplates() {
 function selectTpl(id) { selectedTpl = id; renderTemplates(); }
 function updatePageVal(v) { document.getElementById('pageValue').textContent = v; document.querySelectorAll('.page-btn').forEach(b=>b.classList.remove('active')); }
 function setPages(n) {
-  if (n > 200) { document.getElementById('pageSlider').value = 200; }
-  else { document.getElementById('pageSlider').value = n; }
+  n = Math.max(1, Math.min(500, n));
+  document.getElementById('pageSlider').value = n;
   document.getElementById('pageValue').textContent = n;
   document.querySelectorAll('.page-btn').forEach(b=>b.classList.remove('active'));
   event.target.classList.add('active');
 }
 function setCustomPages() {
-  const v = prompt('请输入PPT页数（1-1000）：', '50');
+  const v = prompt('请输入PPT页数（1-500）：', '50');
   if (v === null) return;
   const n = parseInt(v);
-  if (isNaN(n) || n < 1 || n > 1000) { showToast('请输入1-1000之间的数字','error'); return; }
-  document.getElementById('pageSlider').value = Math.min(n, 200);
+  if (isNaN(n) || n < 1 || n > 500) { showToast('请输入1-500之间的数字','error'); return; }
+  document.getElementById('pageSlider').value = n;
   document.getElementById('pageValue').textContent = n;
   document.querySelectorAll('.page-btn').forEach(b=>b.classList.remove('active'));
   showToast('已设置为'+n+'页','success');
@@ -313,7 +372,6 @@ function addKeyword(kw) { const i = document.getElementById('topicInput'); if(!i
 function showToast(msg, type) { const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show '+(type||'info'); setTimeout(()=>t.classList.remove('show'),2500); }
 function showSettings() { document.getElementById('settingsModal').classList.add('show'); }
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
-function saveSettings() { config.apiKey=document.getElementById('apiKey').value.trim(); config.apiBase=document.getElementById('apiBase').value.trim(); config.model=document.getElementById('model').value; localStorage.setItem('aippt_config',JSON.stringify(config)); closeModal('settingsModal'); showToast('设置已保存','success'); }
 function showHelp() { showToast('输入主题 -> 选择页数模板 -> 生成 -> 导出PPTX','info'); }
 function clearAll() { currentOutline=null; document.getElementById('topicInput').value=''; document.getElementById('descInput').value=''; document.getElementById('pageCount').textContent='0页'; document.getElementById('addBtn').disabled=true; document.getElementById('exportBtn').disabled=true; document.getElementById('refreshImgBtn').disabled=true; document.getElementById('previewContent').innerHTML='<div class="empty-state"><div class="icon">📊</div><p>输入主题后点击「开始生成PPT」</p><p style="font-size:12px;color:#9ca3af;margin-top:4px;">支持AI自动识别行业关键词，生成章节语义匹配的专业真实摄影图片</p><p class="tip">提示：配置API密钥可获得AI生成的专业内容，未配置使用内置行业模板</p></div>'; showToast('已重置','info'); }
 function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
@@ -2204,14 +2262,64 @@ function generateImagePrompt(industry, chapterTitle, topic, pageType) {
   // 根据章节标题生成具体场景描述（简短）
   var sceneDetail = generateSceneDetail(chapterTitle, industry);
 
-  // 简洁组合：basePrompt + sceneDetail + industryKw，不堆叠质量修饰词（加快生成速度）
+  // 提取主题中的核心关键词作为图片主题增强
+  var topicKeywords = extractTopicKeywords(topic, industry);
+  
+  // 高质量真实摄影图片参数（添加负面提示词避免不相关内容）
+  var qualityParams = 'professional photography, real photo, natural lighting, sharp focus, high detail, 8k quality, vibrant natural colors, authentic scene, DSLR photo, no animals, no cartoons, no illustrations, no drawings, no text, no watermark';
+
+  // 简洁组合：basePrompt + sceneDetail + industryKw + topicKeywords + qualityParams
   var fullPrompt = basePrompt;
   if (sceneDetail) {
     fullPrompt += ', ' + sceneDetail;
   }
   fullPrompt += ', ' + industryKw;
+  if (topicKeywords) {
+    fullPrompt += ', ' + topicKeywords;
+  }
+  fullPrompt += ', ' + qualityParams;
 
   return encodeURIComponent(fullPrompt);
+}
+
+// 从主题中提取核心关键词（英文）
+function extractTopicKeywords(topic, industry) {
+  if (!topic) return '';
+  var t = topic.toLowerCase();
+  var keywords = [];
+  
+  // 常见家电/设备关键词映射
+  var deviceMap = {
+    '电磁炉': 'induction cooker',
+    '微波炉': 'microwave oven',
+    '洗衣机': 'washing machine',
+    '冰箱': 'refrigerator',
+    '空调': 'air conditioner',
+    '电视': 'television TV',
+    '热水器': 'water heater',
+    '油烟机': 'range hood',
+    '电饭煲': 'rice cooker',
+    '电风扇': 'electric fan',
+    '电脑': 'computer laptop',
+    '手机': 'smartphone mobile',
+    '汽车': 'car automobile',
+    '电动车': 'electric vehicle',
+    '电机': 'electric motor',
+    '电路板': 'circuit board PCB',
+    '主板': 'motherboard mainboard'
+  };
+  
+  for (var cn in deviceMap) {
+    if (t.includes(cn)) keywords.push(deviceMap[cn]);
+  }
+  
+  // 处理类关键词
+  if (/(故障|维修|修理|修复|检修)/.test(t)) keywords.push('repair maintenance fix');
+  if (/(安装|组装|装配)/.test(t)) keywords.push('installation assembly');
+  if (/(教程|方法|步骤|指南)/.test(t)) keywords.push('tutorial guide step-by-step');
+  if (/(方案|解决|处理)/.test(t)) keywords.push('solution problem-solving');
+  
+  return keywords.slice(0, 3).join(', ');
 }
 
 // 根据章节标题和行业生成具体的场景细节描述
@@ -2663,34 +2771,32 @@ function getImageUrls(industry, chapterTitle, topic, idx, pageType, seedOffset) 
 
   var result = [];
 
-  // === 快速通道（放在最前面，确保立即有图显示）===
-  result.push('https://picsum.photos/seed/' + seed + '/' + w + '/' + h);
-
-  // === AI生成通道（第二优先级，快速升级到行业匹配图片）===
+  // === AI生成通道（第一优先级，生成行业匹配的真实彩图）===
   var pollPrompt = generateImagePrompt(industry, chapterTitle, topic, pageType);
   result.push('https://image.pollinations.ai/prompt/' + pollPrompt +
-    '?width=' + w + '&height=' + h + '&seed=' + seed + '&nologo=true');
+    '?width=' + w + '&height=' + h + '&seed=' + seed + '&nologo=true&enhance=true');
 
-  // === 行业匹配通道（LoremFlickr，因ORB问题放后面作为备选）===
+  // === 行业匹配真实照片通道（第二优先级，LoremFlickr真实照片）===
   var sceneKeywordGroups = getSceneFlickrKeywords(chapterTitle, industry, idx);
   var cacheBust = seed % 100000;
 
-  // 只尝试2组关键词（减少无效等待）
-  for (var gi = 0; gi < sceneKeywordGroups.length && gi < 2; gi++) {
+  // 尝试3组关键词获取真实照片
+  for (var gi = 0; gi < sceneKeywordGroups.length && gi < 3; gi++) {
     var kw = sceneKeywordGroups[gi];
-    var simpleKw = kw.split(',').slice(0, 3).join(',');
+    var simpleKw = kw.split(',').slice(0, 4).join(',');
     var lock = (cacheBust + gi * 101 + idx * 211 + seedOffset * 313) % 99999 + 1;
     result.push('https://loremflickr.com/' + w + '/' + h + '/' + encodeURIComponent(simpleKw) + '?lock=' + lock);
   }
 
-  // 行业通用关键词
+  // 行业通用关键词真实照片
   var industryEn = INDUSTRY_KEYWORDS_EN[industry] || INDUSTRY_KEYWORDS_EN['general'];
   if (industryEn) {
-    var simpleIndustryKw = industryEn.split(' ').slice(0, 2).join(',');
+    var simpleIndustryKw = industryEn.split(' ').slice(0, 3).join(',');
     result.push('https://loremflickr.com/' + w + '/' + h + '/' + encodeURIComponent(simpleIndustryKw) + '?lock=' + ((cacheBust * 19 + 5) % 99999 + 1));
   }
 
-  // Picsum变体（保底，确保每页图片不同）
+  // === 保底通道（Picsum随机图，确保一定有图显示）===
+  result.push('https://picsum.photos/seed/' + seed + '/' + w + '/' + h);
   result.push('https://picsum.photos/seed/' + (seed * 7 + 13) + '/' + w + '/' + h);
   result.push('https://picsum.photos/seed/' + (seed * 31 + 17) + '/' + w + '/' + h);
 
@@ -3151,45 +3257,307 @@ async function downloadImageSequential(urls) {
   return null;
 }
 
+// 智能分析主题，提取核心关键词和问题类型
+function analyzeTopic(topic) {
+  if (!topic) return { keywords: [], problemType: 'general', targetDevice: '' };
+  const t = topic.toLowerCase();
+  const keywords = [];
+  let problemType = 'general';
+  let targetDevice = '';
+  
+  // 检测问题类型
+  if (/(故障|维修|修理|修复|坏了|不工作|检修|排查|处理|解决)/.test(t)) problemType = 'repair';
+  else if (/(方案|解决|处理|应对|实施|计划|规划)/.test(t)) problemType = 'solution';
+  else if (/(教程|方法|步骤|怎么|如何|指南|操作|使用)/.test(t)) problemType = 'tutorial';
+  else if (/(培训|教学|课件|课程|学习)/.test(t)) problemType = 'training';
+  else if (/(报告|分析|调研|研究|趋势|市场)/.test(t)) problemType = 'report';
+  
+  // 检测目标设备/对象
+  const devices = ['电磁炉','微波炉','洗衣机','冰箱','空调','电视','热水器','油烟机','电饭煲','电风扇','电脑','手机','汽车','电动车','电机','电路板','主板','热水器','燃气灶','打印机'];
+  for (const d of devices) {
+    if (t.includes(d)) { targetDevice = d; break; }
+  }
+  
+  return { keywords, problemType, targetDevice };
+}
+
 // 生成扩展章节（当需要页数超过内置章节时）
 function generateExtraChapters(topic, industry, startIdx, count) {
   const tpl = INDUSTRY_TEMPLATES[industry] || INDUSTRY_TEMPLATES['general'];
-  const extraTitles = [
-    '关键要点总结', '重点难点解析', '实际案例分析', '常见问题答疑',
-    '经验技巧分享', '注意事项提醒', '进阶提升建议', '常见误区规避',
-    '工具资源推荐', '后续发展规划', '效果评估方法', '质量控制要点',
-    '成本效益分析', '时间进度安排', '团队协作建议', '风险应急预案',
-    '行业标准解读', '最新政策分析', '未来趋势预测', '优秀案例借鉴',
-    '常见错误纠正', '效率提升技巧', '实用工具介绍', '检查清单',
-    '验收标准说明', '维护保养指南', '常见故障排查', '升级优化方向'
-  ];
+  const analysis = analyzeTopic(topic);
+  
+  // 根据行业和问题类型生成更精准的扩展章节标题
+  const extraTitlesByIndustry = {
+    repair: [
+      '维修安全操作规范详解', '维修工具正确使用方法', '元器件检测判断技巧',
+      '常见故障快速定位方法', '焊接操作规范与技巧', '电路板跑线与信号追踪',
+      '电压测量关键点分析', '故障代码速查与解读', '代换元件选型原则',
+      '维修后测试与验收标准', '返修原因分析与预防', '疑难故障排查思路',
+      '维修效率提升技巧', '特殊故障处理经验', '上门维修注意事项',
+      '客户沟通与服务技巧', '维修报价策略', '配件采购与质量鉴别',
+      '维修记录与经验积累', '新机型电路特点分析'
+    ],
+    medical: [
+      '病史采集要点与技巧', '体格检查规范流程', '辅助检查结果解读',
+      '鉴别诊断思路分析', '治疗方案个体化制定', '用药安全与配伍禁忌',
+      '并发症预防与处理', '医患沟通技巧', '病历书写规范',
+      '急危重症识别与处理', '转诊指征与时机', '康复随访计划',
+      '特殊人群用药注意', '医疗风险防范', '最新诊疗指南解读'
+    ],
+    general: [
+      '关键要点总结回顾', '重点难点深度解析', '实际案例深度剖析', '常见问题答疑解惑',
+      '实战经验技巧分享', '注意事项重点提醒', '进阶能力提升建议', '常见误区规避指南',
+      '工具资源精选推荐', '后续发展规划建议', '效果评估方法体系', '质量控制关键要点',
+      '成本效益详细分析', '时间进度合理安排', '团队协作高效建议', '风险应急预案制定',
+      '行业标准深度解读', '最新政策趋势分析', '未来发展趋势预测', '优秀案例借鉴学习',
+      '常见错误纠正指南', '效率提升实用技巧', '实用工具详细介绍', '检查验收清单',
+      '验收标准详细说明', '维护保养实用指南', '常见问题排查处理', '升级优化方向建议',
+      '实施步骤详细分解', '关键成功要素分析', '常见障碍应对策略', '最佳实践经验总结'
+    ]
+  };
+  
+  const extraTitles = extraTitlesByIndustry[industry] || extraTitlesByIndustry.general;
+  
+  // 根据问题类型生成针对性要点
+  function generatePoints(title, idx) {
+    const basePoints = {
+      repair: [
+        '详细讲解本步骤的操作规范和技术要求，确保操作安全正确',
+        '列出所需工具仪器和具体使用方法，提供参数设置参考',
+        '说明检测判断标准和正常数值范围，帮助准确判断故障',
+        '指出操作中常见的错误做法和可能造成的后果',
+        '提供快速判断技巧和经验口诀，提高维修效率',
+        '列举实际维修案例说明本环节的处理方法',
+        '说明安全注意事项和防护措施，避免触电或损坏设备',
+        '给出维修后的验证方法和测试步骤，确保彻底修复'
+      ],
+      solution: [
+        '明确本环节要解决的核心问题和预期达成目标',
+        '提供具体可执行的操作步骤和实施方法',
+        '列出所需资源条件和准备工作清单',
+        '说明关键节点的判断标准和验收依据',
+        '分析可能遇到的困难和应对预案',
+        '给出时间进度安排和责任人分工建议',
+        '提供成本预算参考和投入产出分析',
+        '总结本环节的成功关键和注意事项'
+      ],
+      tutorial: [
+        '循序渐进讲解本章节核心知识点和操作要领',
+        '配合图示说明关键步骤和操作细节',
+        '列出初学者容易犯的错误和纠正方法',
+        '提供练习题和实操建议巩固学习效果',
+        '总结记忆口诀和快速掌握技巧',
+        '推荐进阶学习资源和参考资料',
+        '说明实际应用场景和使用时机',
+        '给出常见问题解答和疑难解析'
+      ],
+      general: [
+        '详细阐述本部分核心内容和关键操作要点',
+        '结合实际情况给出具体可执行的建议和方法',
+        '指出本环节容易出现的问题和应对策略',
+        '提供参考数据和判断标准帮助决策',
+        '总结经验教训和最佳实践供参考借鉴',
+        '列出注意事项和需要特别关注的细节',
+        '推荐相关工具资源和进一步学习资料',
+        '给出下一步行动建议和后续改进方向'
+      ]
+    };
+    
+    const pts = basePoints[analysis.problemType] || basePoints.general;
+    
+    // 如果有具体设备，替换通用词汇
+    if (analysis.targetDevice) {
+      return pts.map(p => p.replace(/设备/g, analysis.targetDevice).replace(/本环节/g, title.substring(0,6)));
+    }
+    return pts;
+  }
+  
   const chapters = [];
   for (let i=0; i<count; i++) {
     const titleIdx = (startIdx + i) % extraTitles.length;
+    const round = Math.floor((startIdx+i)/extraTitles.length);
     const baseTitle = extraTitles[titleIdx];
-    const title = baseTitle + '（'+(Math.floor((startIdx+i)/extraTitles.length)+1)+'）';
-    const points = [
-      '要点1：详细说明本部分核心内容和关键操作要点',
-      '要点2：结合实际情况给出具体可执行的建议和方法',
-      '要点3：指出本环节容易出现的问题和应对策略',
-      '要点4：提供参考数据和判断标准帮助决策',
-      '要点5：总结经验教训和最佳实践供参考借鉴',
-      '要点6：列出注意事项和需要特别关注的细节',
-      '要点7：推荐相关工具资源和进一步学习资料',
-      '要点8：给出下一步行动建议和后续改进方向'
-    ];
-    chapters.push({title: title, points: points});
+    const title = round > 0 ? baseTitle + '（'+(round+1)+'）' : baseTitle;
+    chapters.push({title: title, points: generatePoints(title, startIdx+i)});
   }
   return chapters;
 }
 
-function getIndustryContent(industry, idx) {
+// 动态适配章节内容到具体设备/对象
+function adaptChapterToDevice(chapter, topic) {
+  if (!chapter || !topic) return chapter;
+  const analysis = analyzeTopic(topic);
+  const device = analysis.targetDevice;
+  if (!device) return chapter;
+  
+  // 设备特定的内容映射
+  const deviceSpecifics = {
+    '空调': {
+      keyComponents: '压缩机、启动电容、风机电机、四通阀、温控传感器、电控板、制冷剂管路、毛细管、膨胀阀',
+      keyVoltages: '220V交流输入、12V/5V控制供电、压缩机启动电压220V、传感器信号电压',
+      commonFaults: '不制冷、制冷效果差、漏水、噪音大、开机跳闸、遥控器失灵、E1/E2/F0故障代码',
+      workPrinciple: '制冷剂在压缩机作用下循环，通过压缩-冷凝-节流-蒸发四个过程实现热量转移，达到制冷效果',
+      coreComponent: '压缩机',
+      powerComponent: '压缩机和启动电容',
+      heatingDesc: '制冷',
+      heatDesc: '制冷',
+      tempSensor: '室温传感器和管温传感器',
+      fan: '内外风机'
+    },
+    '冰箱': {
+      keyComponents: '压缩机、启动器/保护器、温控器、化霜加热器、门封条、制冷剂管路、蒸发器、冷凝器、干燥过滤器',
+      keyVoltages: '220V交流输入、压缩机运行电压、化霜加热电压220V',
+      commonFaults: '不制冷、制冷差、不停机、压缩机不启动、漏水、结冰严重、噪音大',
+      workPrinciple: '压缩机驱动制冷剂循环，通过蒸发器吸热、冷凝器散热实现箱内降温',
+      coreComponent: '压缩机',
+      powerComponent: '压缩机和启动器',
+      heatingDesc: '制冷',
+      heatDesc: '制冷',
+      tempSensor: '温控器探头',
+      fan: '风机'
+    },
+    '洗衣机': {
+      keyComponents: '电机、排水泵、进水阀、水位传感器、电脑板、门开关、皮带、离合器、减速离合器、吊杆',
+      keyVoltages: '220V交流输入、电机运转电压、排水泵/进水阀电压220V',
+      commonFaults: '不进水、不排水、不脱水、不转、漏水、噪音大、显示E1/E2/E3故障代码',
+      workPrinciple: '电机通过皮带或直驱带动内筒旋转，配合进水阀、排水泵实现洗涤-漂洗-脱水全过程',
+      coreComponent: '电机',
+      powerComponent: '电机和排水泵',
+      heatingDesc: '运转',
+      heatDesc: '运转',
+      tempSensor: '水位传感器',
+      fan: ''
+    },
+    '热水器': {
+      keyComponents: '加热管、温控器、漏电保护器、水压开关、点火器、电磁阀、风机、燃气管路、水箱',
+      keyVoltages: '220V交流输入、点火器电压、风机电压220V',
+      commonFaults: '不加热、加热慢、漏水、漏电跳闸、不出热水、点火失败、E1/E2故障',
+      workPrinciple: '电热水器通过电热管加热水箱内的水；燃气热水器通过燃烧燃气加热换热器中的水',
+      coreComponent: '加热管（电）或燃烧器（燃气）',
+      powerComponent: '加热管和温控器',
+      heatingDesc: '加热',
+      heatDesc: '加热',
+      tempSensor: '温度传感器和温控器',
+      fan: '风机'
+    },
+    '电视': {
+      keyComponents: '电源板、主板、背光板/灯条、液晶屏、逻辑板、遥控接收板、电源开关、按键板',
+      keyVoltages: '220V输入、12V/5V/3.3V供电、背光驱动电压24V-100V',
+      commonFaults: '不开机、黑屏有声音、花屏、无图像、无声音、背光不亮、闪屏',
+      workPrinciple: '电源板提供各电压，主板处理信号，背光板点亮灯条，逻辑板驱动液晶屏显示图像',
+      coreComponent: '主板和电源板',
+      powerComponent: '电源板和背光板',
+      heatingDesc: '工作',
+      heatDesc: '显示',
+      tempSensor: '',
+      fan: ''
+    },
+    '微波炉': {
+      keyComponents: '磁控管、高压变压器、高压电容、高压二极管、门联锁开关、定时器、转盘电机、照明灯',
+      keyVoltages: '220V输入、高压2000V以上（磁控管）、灯丝电压3.3V',
+      commonFaults: '不加热、加热慢、火花异响、不通电、转盘不转、门开关故障',
+      workPrinciple: '磁控管产生2450MHz微波，微波使食物内水分子高速振动摩擦生热',
+      coreComponent: '磁控管',
+      powerComponent: '磁控管和高压变压器',
+      heatingDesc: '加热',
+      heatDesc: '加热',
+      tempSensor: '',
+      fan: '散热风扇'
+    },
+    '电磁炉': {
+      keyComponents: '线圈盘、IGBT功率管、整流桥堆、谐振电容、滤波电容、MCU主控板、温度传感器、风扇',
+      keyVoltages: '220V交流输入、310V直流母线、18V风扇/IGBT驱动、5V主控供电',
+      commonFaults: '不通电、通电显示但不加热、加热中断、按键失灵、显示故障代码、IGBT反复损坏',
+      workPrinciple: '交流电经整流桥变为直流电，IGBT高频开关使线圈盘产生交变磁场，在铁质锅具底部产生涡流发热',
+      coreComponent: 'IGBT功率管',
+      powerComponent: 'IGBT和整流桥堆',
+      heatingDesc: '加热',
+      heatDesc: '加热',
+      tempSensor: '线盘温度传感器和IGBT温度传感器',
+      fan: '散热风扇'
+    }
+  };
+  
+  const spec = deviceSpecifics[device] || deviceSpecifics['电磁炉'];
+  const title = chapter.title || '';
+  let points = [...(chapter.points || [])];
+  
+  // 构建完整替换映射
+  const replaceMap = {
+    // 设备名替换
+    '电磁炉': device,
+    '家电': device,
+    '锅具': '相关部件',
+    '铁质锅具': '负载',
+    // 核心部件替换
+    '线圈盘（励磁线圈）、IGBT功率管、整流桥堆、谐振电容、滤波电容': spec.keyComponents,
+    'IGBT功率管、整流桥堆': spec.powerComponent,
+    '线圈盘': spec.coreComponent,
+    'IGBT': spec.coreComponent,
+    'IGBT功率管': spec.powerComponent,
+    '整流桥堆': spec.coreComponent.split('、')[0],
+    '谐振电容': '关键元器件',
+    '滤波电容': '关键元器件',
+    'MCU主控芯片': '主控芯片',
+    // 电压替换
+    '220V交流输入、310V直流母线、18V风扇/IGBT驱动、5V主控供电': spec.keyVoltages,
+    '310V直流母线': '主工作电压',
+    '18V风扇/IGBT驱动': '驱动电压',
+    '5V主控供电': '控制供电',
+    // 工作原理替换
+    '涡流发热原理：交变磁场在铁质锅具底部产生涡流，涡流克服锅体内阻发热': spec.workPrinciple,
+    'IGBT高频开关使线圈盘产生交变磁场': '核心部件驱动实现能量转换',
+    // 功能替换
+    '加热': spec.heatingDesc,
+    '不加热': '不'+spec.heatDesc,
+    '间歇加热': spec.heatDesc+'中断',
+    // 传感器替换
+    '温度传感器（热敏电阻）': spec.tempSensor || '温度传感器',
+    '温度传感器': spec.tempSensor || '温度传感器',
+    // 风扇替换
+    '风扇散热系统': spec.fan ? (spec.fan+'散热系统') : '散热系统',
+    '风扇': spec.fan || '散热装置',
+    // 故障代码
+    '干烧保护': '过热保护',
+    '锅具检测': '负载检测'
+  };
+  
+  // 替换章节标题中的设备名
+  let newTitle = title.replace(/电磁炉/g, device).replace(/家电维修/g, device+'维修');
+  
+  // 按替换字符串长度从长到短排序，确保长字符串先被替换
+  const sortedEntries = Object.entries(replaceMap).sort((a,b) => b[0].length - a[0].length);
+  
+  // 替换要点中的关键词
+  points = points.map(pt => {
+    let newPt = pt;
+    for (const [old, rep] of sortedEntries) {
+      if (old && rep) {
+        newPt = newPt.split(old).join(rep);
+      }
+    }
+    return newPt;
+  });
+  
+  return {title: newTitle, points: points};
+}
+
+function getIndustryContent(industry, idx, topic) {
   const tpl = INDUSTRY_TEMPLATES[industry] || INDUSTRY_TEMPLATES['general'];
-  if (idx < tpl.chapters.length) return tpl.chapters[idx];
-  // 超出内置章节，生成扩展章节
-  const extraIdx = idx - tpl.chapters.length;
-  const extras = generateExtraChapters('', industry, extraIdx, 1);
-  return extras[0];
+  let chapter;
+  if (idx < tpl.chapters.length) {
+    chapter = tpl.chapters[idx];
+  } else {
+    // 超出内置章节，生成扩展章节
+    const extraIdx = idx - tpl.chapters.length;
+    const extras = generateExtraChapters(topic || '', industry, extraIdx, 1);
+    chapter = extras[0];
+  }
+  // 如果是维修行业且有具体设备，动态适配内容
+  if (industry === 'repair' && topic) {
+    return adaptChapterToDevice(chapter, topic);
+  }
+  return chapter;
 }
 
 function genLocalOutline(topic, pc) {
@@ -3198,16 +3566,53 @@ function genLocalOutline(topic, pc) {
   const tpl = INDUSTRY_TEMPLATES[industry] || INDUSTRY_TEMPLATES['general'];
   const useImg = document.getElementById('useImages').checked;
   const ptsPerPage = useImg?5:7; // 每页显示要点数
+  const analysis = analyzeTopic(topic);
   
-  // 首先收集所有章节内容
+  // 根据请求页数决定内容策略
+  // pc=1: 仅封面
+  // pc=2: 封面+内容
+  // pc=3: 封面+目录+结尾（无内容）
+  // pc>=4: 完整结构
+  
+  if (pc <= 1) {
+    // 仅1页：封面
+    pages.push({page_number:pn++, type:'cover', title:topic, content:[], subtitle:tpl.name+'专业解决方案'});
+    pages.forEach((p,i)=>p.page_number=i+1);
+    return {title:topic, pages:pages};
+  }
+  
+  if (pc === 2) {
+    // 2页：封面+内容（核心要点）
+    pages.push({page_number:pn++, type:'cover', title:topic, content:[], subtitle:tpl.name+'专业解决方案'});
+    const ch = getIndustryContent(industry, 0, topic);
+    pages.push({page_number:pn++, type:'content', title:ch.title, content:(ch.points||[]).slice(0, ptsPerPage)});
+    pages.forEach((p,i)=>p.page_number=i+1);
+    return {title:topic, pages:pages};
+  }
+  
+  // pc >= 3: 完整结构
+  // 只有超过50页时才添加PART章节分隔页，避免短文档出现无用空白页
+  const useParts = pc > 50;
+  const numParts = useParts ? Math.max(2, Math.ceil((pc-3) / 10)) : 0;
+  const sectionPages = useParts ? numParts : 0;
+  const availableContentPages = Math.max(1, pc - 3 - sectionPages);
+  
+  // 收集章节：优先使用模板章节，不足时用扩展章节补充
   let allChapters = [];
   const templateChapters = tpl.chapters || [];
-  const numTemplateChapters = templateChapters.length;
   
-  // 如果模板有足够章节，优先使用模板章节（循环使用）
-  const numContentPages = Math.max(1, pc - 3);
-  for (let i=0; i<Math.max(numContentPages, numTemplateChapters); i++) {
-    allChapters.push(getIndustryContent(industry, i));
+  // 第一轮：使用所有模板章节
+  for (let i=0; i<templateChapters.length; i++) {
+    allChapters.push(getIndustryContent(industry, i, topic));
+  }
+  
+  // 如果还需要更多章节，生成扩展章节
+  let extraIdx = 0;
+  while (allChapters.length < availableContentPages * 2) { // 多生成一些，因为分页会拆成多页
+    const extras = generateExtraChapters(topic, industry, extraIdx, 1);
+    allChapters.push(extras[0]);
+    extraIdx++;
+    if (extraIdx > 500) break; // 防止无限循环
   }
   
   // 将章节按每页容量拆分成多页
@@ -3224,27 +3629,48 @@ function genLocalOutline(topic, pc) {
       const pageTitle = (i===0) ? ch.title : ch.title + '（' + (Math.floor(i/ptsPerPage)+1) + '）';
       contentPages.push({title:pageTitle, points:batch});
     }
+    // 如果已达到所需页数，停止
+    if (contentPages.length >= availableContentPages) break;
   }
   
+  // 确保内容页数量不超过可用页数
+  contentPages = contentPages.slice(0, availableContentPages);
   const actualContentPages = contentPages.length;
-  const useParts = actualContentPages > 10; // 超过10页内容时分PART
 
   // 封面页
   pages.push({page_number:pn++, type:'cover', title:topic, content:[], subtitle:tpl.name+'专业解决方案'});
 
-  // 目录页 - 只显示章节标题（不含续页）
-  const chapterTitles = allChapters.map(c=>c.title);
+  // 目录页 - 只显示原始章节标题（不含续页）
+  const chapterTitles = [];
+  const seenTitles = new Set();
+  for (const cp of contentPages) {
+    const baseTitle = cp.title.replace(/（\d+）$/, '');
+    if (!seenTitles.has(baseTitle)) {
+      seenTitles.add(baseTitle);
+      chapterTitles.push(baseTitle);
+    }
+  }
   pages.push({page_number:pn++, type:'toc', title:'目录', content:chapterTitles});
 
-  // 如果页数很多，添加章节分隔
-  if (useParts) {
-    const partSize = Math.ceil(actualContentPages / Math.ceil(actualContentPages / 8));
+  // 添加内容页，根据页数决定是否分PART
+  if (useParts && actualContentPages > 8) {
+    const partSize = Math.ceil(actualContentPages / numParts);
     let pageIdx = 0;
-    for (let part=0; pageIdx<actualContentPages; part++) {
-      // PART分隔页
+    for (let part=0; pageIdx<actualContentPages && part<numParts; part++) {
+      // PART分隔页 - 包含本部分章节概览
       const nextEnd = Math.min(pageIdx + partSize, actualContentPages);
-      const partChapterNames = contentPages.slice(pageIdx, nextEnd).map(cp=>cp.title).filter(t=>!t.includes('续'));
-      pages.push({page_number:pn++, type:'section', title:'PART 0'+(part+1), content:[partChapterNames[0]+' 等相关内容']});
+      const partChapterTitles = [];
+      const seenPartTitles = new Set();
+      for (let pi=pageIdx; pi<nextEnd; pi++) {
+        const bt = contentPages[pi].title.replace(/（\d+）$/, '');
+        if (!seenPartTitles.has(bt)) {
+          seenPartTitles.add(bt);
+          partChapterTitles.push(bt);
+        }
+      }
+      const partStartTitle = partChapterTitles[0] || '';
+      // 将章节列表作为内容，让PART页有实质内容
+      pages.push({page_number:pn++, type:'section', title:'第'+(part+1)+'部分', content:partChapterTitles.slice(0, 6)});
       for (; pageIdx<nextEnd; pageIdx++) {
         pages.push({page_number:pn++, type:'content', title:contentPages[pageIdx].title, content:contentPages[pageIdx].points});
       }
@@ -3292,18 +3718,29 @@ function extractJSON(text) {
 function buildPrompt(topic, desc, pc) {
   const cc = Math.max(1, pc-3);
   const ind = detectIndustry(topic);
+  const analysis = analyzeTopic(topic);
   const names = {ai:'人工智能',digital:'数字化转型',medical:'医疗健康',treatment:'医疗治疗',edu:'教育培训',finance:'金融财经',security:'网络安全',newenergy:'新能源',ecommerce:'电子商务',marketing:'市场营销',realestate:'房地产',gov:'智慧城市',enterprise:'企业管理',repair:'家电维修',recipe:'美食菜谱',travel:'旅游攻略',law:'法律合规',automotive:'汽车行业',agriculture:'农业',logistics:'物流供应链',construction:'建筑工程',restaurant:'餐饮',fitness:'健身运动',beauty:'美妆美容',pet:'宠物',motherbaby:'母婴育儿',tutorial:'教程指南',general:'通用方案'};
   const indName = names[ind]||'通用方案';
-  const isTutorial = ind==='repair' || ind==='tutorial' || isTutorialTopic(topic);
+  const isTutorial = ind==='repair' || ind==='tutorial' || isTutorialTopic(topic) || analysis.problemType==='tutorial';
+  const isRepair = ind==='repair' || analysis.problemType==='repair';
+  const isSolution = analysis.problemType==='solution';
+  const device = analysis.targetDevice;
 
   let structureDesc = '';
-  if (isTutorial) {
-    structureDesc = '逻辑结构为：准备工作/工具材料 -> 基础概念/原理 -> 详细操作步骤（按步骤顺序分章节）-> 常见问题解决 -> 注意事项总结。章节标题必须是操作步骤式标题，不能是企业方案式标题。';
+  if (isRepair) {
+    structureDesc = '逻辑结构为：维修前准备与安全须知 -> 设备结构与工作原理 -> 故障现象分析 -> 所需工具材料 -> 详细检修步骤（按检测/排查/维修顺序分章节，每步说明具体操作方法、判断标准、数据参数）-> 元器件检测与代换 -> 常见故障代码解读 -> 维修后测试验证 -> 注意事项与安全规范。章节标题必须是具体维修操作式标题，内容必须是具体的检测方法、电压/电阻参数、故障判断标准、操作步骤。';
+  } else if (isTutorial) {
+    structureDesc = '逻辑结构为：准备工作/工具材料 -> 基础概念/原理 -> 详细操作步骤（按步骤顺序分章节，每步说明具体做法）-> 常见问题解决 -> 注意事项总结。章节标题必须是操作步骤式标题，内容必须是具体可执行的操作方法。';
+  } else if (isSolution) {
+    structureDesc = '逻辑结构为：问题背景与现状分析 -> 问题根因分析 -> 解决方案总体设计 -> 具体实施步骤（分章节详细说明每步怎么做、谁来做、何时完成、验收标准）-> 资源需求与预算 -> 时间进度安排 -> 风险识别与应对 -> 预期效果评估。内容必须具体可落地。';
   } else {
     structureDesc = '逻辑结构为：行业背景 -> 现状分析 -> 方案设计 -> 核心功能/技术 -> 实施计划 -> 预期效益 -> 风险管控。';
   }
+  
+  const deviceHint = device ? '\n目标设备/对象：'+device+'，所有内容必须围绕'+device+'展开，涉及参数、方法、步骤必须针对'+device+'。' : '';
+  const problemTypeHint = {repair:'故障维修/处理方案',tutorial:'教程/操作指南',solution:'解决方案/实施方案',training:'培训课件',report:'报告分析',general:'专业内容'}[analysis.problemType]||'专业方案';
 
-  return '你是专业的PPT内容生成专家，请严格围绕用户主题生成匹配的PPT大纲JSON。\n\n用户主题：'+topic+'\n主题类型：'+indName+(desc?'\n补充说明：'+desc:'')+'\n页数：'+pc+'页（封面1页+目录1页+内容'+cc+'页+结尾1页）\n\n'+structureDesc+'\n\n返回JSON格式：{"title":"与用户主题直接相关的标题","pages":[{"page_number":1,"type":"cover","title":"封面标题（必须包含用户主题关键词）","content":[]},{"page_number":2,"type":"toc","title":"目录","content":["章节1","章节2",...]},{"page_number":3,"type":"content","title":"与主题相关的具体章节标题","content":["具体详细要点1（25-45字，必须紧扣主题，内容真实有用）","具体要点2","具体要点3","具体要点4","具体要点5","具体要点6","具体要点7","具体要点8"]},...,{"page_number":'+pc+',"type":"ending","title":"感谢观看","content":[]}]}\n\n严格要求：\n1. 章节标题和内容必须100%围绕用户主题"'+topic+'"，不能生成不相关的企业方案套话\n2. 如果是教程/维修/操作类主题，内容必须是具体操作步骤、方法、技巧，不能是项目背景/实施方案\n3. 每个内容页6-8个要点，每个25-45字，内容真实具体可操作\n4. 只返回标准JSON，不要markdown标记，不要其他解释文字';
+  return '你是专业的PPT内容生成专家，擅长根据用户主题生成精准、详细、可操作的专业PPT内容。请严格围绕用户主题生成匹配的PPT大纲JSON。\n\n用户主题：'+topic+'\n主题类型：'+indName+'\n内容类型：'+problemTypeHint+(desc?'\n补充说明：'+desc:'')+deviceHint+'\n页数：'+pc+'页（封面1页+目录1页+内容'+cc+'页+结尾1页）\n\n'+structureDesc+'\n\n返回JSON格式：{"title":"'+topic+'","pages":[{"page_number":1,"type":"cover","title":"'+topic+'","content":[]},{"page_number":2,"type":"toc","title":"目录","content":["章节1","章节2",...]},{"page_number":3,"type":"content","title":"具体章节标题（紧扣主题）","content":["要点1（30-50字，必须具体、精准、可操作，包含数据/参数/标准/方法）","要点2","要点3","要点4","要点5","要点6","要点7","要点8"]},...,{"page_number":'+pc+',"type":"ending","title":"感谢观看","content":[]}]}\n\n严格要求：\n1. 章节标题和内容必须100%围绕用户主题"'+topic+'"，抓住核心问题和重点，不能生成泛泛而谈的套话\n2. 如果是维修类：必须给出具体检测方法、电压/电阻/电容参数、故障判断标准、元器件代换型号、安全操作规范\n3. 如果是教程类：必须按步骤顺序给出具体操作方法，每步说明怎么做、注意什么\n4. 如果是方案类：必须给出具体实施步骤、责任人、时间节点、验收标准、预算参考\n5. 每个内容页5-8个要点，每个30-50字，内容真实、具体、专业、可操作，避免空泛描述\n6. 对于维修/故障处理主题，必须包含：安全须知、工具清单、检测步骤、参数标准、故障排查、常见故障及解决方法\n7. 只返回标准JSON，不要markdown标记，不要其他解释文字';
 }
 
 async function startGenerate() {
@@ -3406,7 +3843,20 @@ function renderCard(p, idx) {
     const items = content.length>0?content.slice(0,10):['项目介绍','行业背景','核心方案','技术架构','实施计划','预期效益'];
     slide = '<div class="page-slide slide-toc"><div class="toc-title">目录</div><div class="toc-line"></div><div class="toc-list">'+items.map(it=>'<div class="toc-item"><span class="toc-dot"></span>'+esc(String(it).substring(0,9))+'</div>').join('')+'</div></div>';
   } else if (t==='section') {
-    slide = '<div class="page-slide" style="background:linear-gradient(135deg,#1e293b,#334155);display:flex;align-items:center;justify-content:center;flex-direction:column;"><div style="color:#60a5fa;font-size:10px;letter-spacing:2px;margin-bottom:8px;">'+esc(p.title||'PART')+'</div><div style="color:#94a3b8;font-size:7px;text-align:center;padding:0 20px;">'+esc((content[0]||'').substring(0,40))+'</div></div>';
+    // 章节分隔页 - 显示本部分章节概览列表
+    const sectionItems = content.filter(x=>x&&typeof x==='string').slice(0,6);
+    const sectionListHtml = sectionItems.map((it,i)=>
+      '<div style="display:flex;align-items:center;gap:4px;margin-bottom:3px;">'+
+        '<div style="width:10px;height:10px;border-radius:50%;background:#3b82f6;color:#fff;font-size:5px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+(i+1)+'</div>'+
+        '<div style="color:#e2e8f0;font-size:5px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">'+esc(String(it).substring(0,20))+'</div>'+
+      '</div>'
+    ).join('');
+    slide = '<div class="page-slide" style="background:linear-gradient(135deg,#1e293b,#334155);display:flex;align-items:center;justify-content:flex-start;flex-direction:column;padding:15px 20px;">'+
+      '<div style="width:100%;height:2px;background:#3b82f6;margin-bottom:10px;"></div>'+
+      '<div style="color:#60a5fa;font-size:11px;font-weight:bold;letter-spacing:1px;margin-bottom:4px;">'+esc(p.title||'')+'</div>'+
+      '<div style="color:#94a3b8;font-size:5px;margin-bottom:8px;">本部分内容概览</div>'+
+      '<div style="width:100%;max-width:140px;">'+sectionListHtml+'</div>'+
+    '</div>';
   } else if (t==='ending') {
     slide = '<div class="page-slide slide-ending"><div class="ending-title">THANKS</div></div>';
   } else {
@@ -3564,9 +4014,18 @@ async function exportPPT() {
         items.slice(0,20).forEach((it,i)=>{const col=i<ips?0:1,row=i<ips?i:i-ips,x=0.8+col*4.5,y=startY+row*itemH;s.addShape(pptx.ShapeType.ellipse,{x:x,y:y+0.12,w:0.15,h:0.15,fill:{color:c.p}});s.addText(String(i+1),{x:x,y:y+0.07,w:0.15,h:0.25,fontSize:10,bold:true,color:'ffffff',align:'center',valign:'middle'});s.addText(String(it),{x:x+0.35,y:y,w:4,h:itemH-0.05,fontSize:items.length<=12?14:12,color:'374151',fontFace:'Microsoft YaHei',valign:'middle'});});
       } else if(p.type==='section'){
         s.background={color:c.d};
+        s.addShape(pptx.ShapeType.rect,{x:0,y:0,w:'100%',h:0.08,fill:{color:c.p}});
         s.addShape(pptx.ShapeType.rect,{x:0,y:2.5,w:'100%',h:0.03,fill:{color:c.p}});
-        s.addText(p.title||'PART',{x:0.5,y:2.8,w:'90%',h:1,fontSize:42,bold:true,color:c.p,align:'center',valign:'middle',letterSpacing:3});
-        if(ca[0])s.addText(String(ca[0]),{x:1,y:4.0,w:8,h:0.6,fontSize:16,color:'94a3b8',align:'center',fontFace:'Microsoft YaHei'});
+        s.addText(p.title||'PART',{x:0.5,y:1.5,w:'90%',h:0.8,fontSize:36,bold:true,color:c.p,align:'center',valign:'middle',letterSpacing:2});
+        s.addText('本部分内容概览',{x:0.5,y:2.3,w:'90%',h:0.5,fontSize:14,color:'94a3b8',align:'center',fontFace:'Microsoft YaHei'});
+        // 显示本部分的章节列表（最多6个）
+        const sectionItems = ca.filter(x=>x&&typeof x==='string').slice(0,6);
+        sectionItems.forEach((item,i)=>{
+          const y = 3.0 + i*0.5;
+          s.addShape(pptx.ShapeType.ellipse,{x:2.5,y:y+0.1,w:0.2,h:0.2,fill:{color:c.p}});
+          s.addText(String(i+1),{x:2.5,y:y+0.05,w:0.2,h:0.28,fontSize:10,bold:true,color:'ffffff',align:'center',valign:'middle',fontFace:'Microsoft YaHei'});
+          s.addText(String(item),{x:2.9,y:y,w:5,h:0.4,fontSize:14,color:'e2e8f0',fontFace:'Microsoft YaHei',valign:'middle'});
+        });
       } else if(p.type==='ending'){
         s.background={color:c.d};
         s.addShape(pptx.ShapeType.rect,{x:0,y:0,w:'100%',h:0.08,fill:{color:c.p}});
@@ -3623,8 +4082,18 @@ async function exportPPT() {
   }
 }
 
-loadConfig();
-renderTemplates();
+// 页面加载完成后初始化
+function initApp() {
+  loadConfig();
+  renderTemplates();
+}
+
+// DOM加载完成后初始化
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
+}
 </script>
 </body>
 </html>
