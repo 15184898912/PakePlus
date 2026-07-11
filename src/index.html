@@ -73,11 +73,12 @@ textarea { resize:vertical; min-height:70px; }
 .toc-dot { width:4px; height:4px; background:#3b82f6; border-radius:50%; flex-shrink:0; }
 .slide-ending { background:linear-gradient(135deg,#1e293b,#0f172a); display:flex; align-items:center; justify-content:center; color:white; }
 .ending-title { font-size:18px; font-weight:bold; letter-spacing:2px; }
-.slide-content-detail { background:white; padding:6px 8px; display:flex; flex-direction:column; }
-.slide-content-detail .ct-title { font-size:7px; font-weight:bold; color:#1e40af; margin-bottom:4px; padding-bottom:2px; border-bottom:1px solid #dbeafe; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.slide-content-detail { background:white; padding:6px 8px; display:flex; flex-direction:column; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
+.slide-content-detail .ct-title { font-size:7px; font-weight:bold; color:#1e40af; margin-bottom:4px; padding-bottom:2px; border-bottom:1px solid #dbeafe; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; word-break:break-all; }
 .slide-content-detail .ct-points { flex:1; overflow:hidden; }
-.slide-content-detail .ct-pt { font-size:5px; color:#374151; line-height:1.35; margin-bottom:2px; display:flex; gap:2px; }
-.slide-content-detail .ct-num { color:#3b82f6; font-weight:bold; flex-shrink:0; }
+.ct-pt { font-size:6px; color:#374151; line-height:1.5; margin-bottom:3px; display:flex; gap:3px; align-items:flex-start; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
+.ct-num { color:#3b82f6; font-weight:bold; flex-shrink:0; font-size:6px; line-height:1.5; }
+.ct-title { font-size:7px; font-weight:bold; color:#1e40af; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; word-break:break-all; }
 .page-card-footer { background:#1e293b; padding:7px 10px; display:flex; justify-content:space-between; align-items:center; }
 .page-title-text { font-size:10px; color:#d1d5db; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-right:6px; }
 .icon-btn { background:none; border:none; color:#9ca3af; cursor:pointer; font-size:13px; padding:3px; margin-left:3px; }
@@ -185,13 +186,13 @@ textarea { resize:vertical; min-height:70px; }
       <div class="section">
         <label>PPT页数（1-1000页）</label>
         <div class="page-slider">
-          <input type="range" id="pageSlider" min="5" max="200" value="10" oninput="updatePageVal(this.value)">
-          <span class="page-val" id="pageValue">10</span>
+          <input type="range" id="pageSlider" min="5" max="500" value="20" oninput="updatePageVal(this.value)">
+          <span class="page-val" id="pageValue">20</span>
         </div>
         <div class="page-btns">
           <button class="page-btn" onclick="setPages(5)">5页</button>
-          <button class="page-btn active" onclick="setPages(10)">10页</button>
-          <button class="page-btn" onclick="setPages(20)">20页</button>
+          <button class="page-btn" onclick="setPages(10)">10页</button>
+          <button class="page-btn active" onclick="setPages(20)">20页</button>
           <button class="page-btn" onclick="setPages(50)">50页</button>
           <button class="page-btn" onclick="setPages(100)">100页</button>
           <button class="page-btn" onclick="setCustomPages()">自定义</button>
@@ -317,40 +318,198 @@ function showHelp() { showToast('输入主题 -> 选择页数模板 -> 生成 ->
 function clearAll() { currentOutline=null; document.getElementById('topicInput').value=''; document.getElementById('descInput').value=''; document.getElementById('pageCount').textContent='0页'; document.getElementById('addBtn').disabled=true; document.getElementById('exportBtn').disabled=true; document.getElementById('refreshImgBtn').disabled=true; document.getElementById('previewContent').innerHTML='<div class="empty-state"><div class="icon">📊</div><p>输入主题后点击「开始生成PPT」</p><p style="font-size:12px;color:#9ca3af;margin-top:4px;">支持AI自动识别行业关键词，生成章节语义匹配的专业真实摄影图片</p><p class="tip">提示：配置API密钥可获得AI生成的专业内容，未配置使用内置行业模板</p></div>'; showToast('已重置','info'); }
 function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 
-// 全局图片加载成功处理
-function handleImgLoad(img) {
+// 全局图片加载成功处理 - 立即显示并异步尝试转base64
+function handleImgLoad(img, idx) {
   img.style.opacity = '1';
   var container = img.parentElement;
   if (container) {
     var loading = container.querySelector('.img-loading');
     if (loading) loading.style.display = 'none';
   }
+  // 标记为已加载成功，防止重复触发fallback
+  img.dataset.loaded = '1';
+  // 异步转base64存入page数据（用于导出），不阻塞UI
+  setTimeout(function() {
+    if (currentOutline && typeof idx === 'number' && currentOutline.pages[idx]) {
+      try {
+        var canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || 800;
+        canvas.height = img.naturalHeight || 450;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+        if (dataUrl && dataUrl.length > 1000) {
+          currentOutline.pages[idx].imageData = dataUrl;
+        }
+      } catch(e) {
+        // Canvas CORS错误时忽略，导出时会重新下载
+      }
+    }
+  }, 100);
+  // 快速图片显示后，立即在后台尝试加载行业匹配的更好图片
+  // 错开各页启动时间避免浏览器并发限制，每页间隔150ms
+  var delay = 200 + (typeof idx === 'number' ? idx * 150 : 0);
+  setTimeout(function() {
+    upgradeImageInBackground(img, idx);
+  }, delay);
 }
 
-// 全局图片加载失败处理 - 自动尝试备选图片
-function handleImgError(img) {
-  var container = img.parentElement;
-  if (!container) return;
-
-  // 检查是否已经尝试过备选图片（通过data属性标记）
-  if (!img.getAttribute('data-retried')) {
-    img.setAttribute('data-retried', 'true');
-    // 从容器向上找到page-card获取行业信息
-    var pageCard = container.closest ? container.closest('.page-card') : null;
-    var idx = pageCard ? parseInt(pageCard.getAttribute('data-idx')) : Math.floor(Math.random()*100);
-    // 生成一个简单的备选图片URL
-    var fallbackSeed = Math.abs(hashCode('fallback_' + idx + '_' + Date.now()));
-    img.src = 'https://image.pollinations.ai/prompt/' + encodeURIComponent('professional business photography, clean simple, high quality') +
-      '?width=1024&height=576&seed=' + fallbackSeed + '&nologo=true&nofeed=true';
+// 后台升级图片：当前快速图片加载成功后，立即尝试加载行业关键词匹配的真实照片
+// 如果行业匹配图片加载成功，自动替换当前图片（带来更专业的视觉效果）
+// 策略：跳过Picsum快速源（索引0），优先尝试LoremFlickr行业匹配图，最后尝试AI生成图
+// 注意：只有LoremFlickr和Pollinations返回的图片才会替换，Picsum变体不替换（避免随机换随机）
+function upgradeImageInBackground(img, idx) {
+  if (!currentOutline || !currentOutline.pages[idx]) return;
+  var p = currentOutline.pages[idx];
+  if (!p.imageUrls || p.imageUrls.length <= 1) return;
+  // 已经升级为行业图/AI图的不再重复升级
+  if (img.dataset.upgraded === '1') return;
+  
+  // 判断URL是否是行业/AI图片源（非Picsum源）
+  function isIndustryOrAIUrl(url) {
+    if (!url) return false;
+    return url.indexOf('loremflickr') !== -1 || url.indexOf('pollinations') !== -1;
+  }
+  
+  // 如果当前显示的已经是行业/AI图，标记为已升级
+  if (isIndustryOrAIUrl(img.src)) {
+    img.dataset.upgraded = '1';
     return;
   }
+  
+  img.dataset.upgrading = '1';
+  
+  // 从第二源开始尝试（跳过索引0的Picsum快速源）
+  var urls = p.imageUrls.slice(1);
+  var industryFound = false;
+  var triedCount = 0;
+  
+  var tryNext = function(urlIndex) {
+    if (urlIndex >= urls.length || triedCount > 8) {
+      img.dataset.upgrading = '';
+      img.dataset.upgraded = '1'; // 所有源尝试完毕，标记完成
+      return;
+    }
+    // 如果已经找到行业图，停止后续尝试
+    if (industryFound) {
+      img.dataset.upgrading = '';
+      return;
+    }
+    
+    var testUrl = urls[urlIndex];
+    triedCount++;
+    
+    // 如果是Picsum变体URL，跳过（不尝试替换随机图为另一个随机图）
+    if (testUrl.indexOf('picsum') !== -1) {
+      tryNext(urlIndex + 1);
+      return;
+    }
+    
+    var testImg = new Image();
+    var isPollinations = testUrl.indexOf('pollinations') !== -1;
+    var timeoutMs = isPollinations ? 30000 : 6000;
 
-  // 备选也失败，显示占位符
-  img.style.display = 'none';
-  var loading = container.querySelector('.img-loading');
-  if (loading) {
-    loading.innerHTML = '<div style="font-size:14px;opacity:0.3;">🖼️</div><div style="font-size:4px;color:#94a3b8;margin-top:2px;">图片加载失败</div>';
+    // 对Pollinations AI图片设置crossOrigin（因为Pollinations支持CORS），避免ORB阻止
+    if (isPollinations) {
+      testImg.crossOrigin = 'anonymous';
+    }
+    
+    var timer = setTimeout(function() {
+      testImg.src = '';
+      tryNext(urlIndex + 1);
+    }, timeoutMs);
+    
+    testImg.onload = function() {
+      clearTimeout(timer);
+      if (testImg.naturalWidth > 200 && testImg.naturalHeight > 150) {
+        // 只有行业/AI图片才替换
+        if (isIndustryOrAIUrl(testUrl) && !industryFound) {
+          industryFound = true;
+          img.dataset.upgraded = '1';
+          // 平滑过渡替换图片
+          img.style.transition = 'opacity 0.3s ease';
+          img.style.opacity = '0';
+          setTimeout(function() {
+            // 替换图片源。Pollinations图片需要crossOrigin以避免后续CORS问题
+            if (isPollinations) {
+              img.crossOrigin = 'anonymous';
+            }
+            img.src = testImg.src;
+            img.style.opacity = '1';
+            // 转base64用于导出（使用testImg而非img，因为testImg有crossOrigin）
+            setTimeout(function() {
+              try {
+                var canvas = document.createElement('canvas');
+                canvas.width = testImg.naturalWidth;
+                canvas.height = testImg.naturalHeight;
+                var ctx = canvas.getContext('2d');
+                ctx.drawImage(testImg, 0, 0);
+                var dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                if (dataUrl && dataUrl.length > 5000) {
+                  p.imageData = dataUrl;
+                  console.log('AI图片已缓存用于导出, 大小:', dataUrl.length);
+                }
+              } catch(e) {
+                console.log('Canvas转换失败:', e);
+              }
+            }, 200);
+          }, 150);
+        }
+        tryNext(urlIndex + 1);
+      } else {
+        tryNext(urlIndex + 1);
+      }
+    };
+    testImg.onerror = function() {
+      clearTimeout(timer);
+      tryNext(urlIndex + 1);
+    };
+    // 错开请求发送，避免浏览器并发连接限制（每请求间隔300ms）
+    setTimeout(function() {
+      if (!industryFound) {
+        testImg.src = testUrl;
+      }
+    }, urlIndex * 300);
+  };
+  
+  tryNext(0);
+}
+
+// 全局图片加载失败处理 - 自动尝试备用URL（多源回退链）
+function handleImgError(img, idx) {
+  if (img.dataset.loaded === '1') return; // 已加载成功，不处理
+  var fallbacks = img.dataset.fallbacks;
+  if (fallbacks) {
+    try {
+      var urls = JSON.parse(fallbacks);
+      if (urls && urls.length > 0) {
+        var nextUrl = urls.shift();
+        img.dataset.fallbacks = JSON.stringify(urls);
+        img.src = nextUrl;
+        return; // 尝试下一个URL
+      }
+    } catch(e) {}
   }
+  // 所有URL都失败了，显示占位图标但不阻塞
+  img.style.display = 'none';
+  var container = img.parentElement;
+  if (container) {
+    var loading = container.querySelector('.img-loading');
+    if (loading) {
+      loading.innerHTML = '<div style="font-size:18px;opacity:0.35;">🖼️</div>';
+    }
+  }
+}
+
+// 单页图片加载完成后，立即更新预览中该页的图片（无需等待全部完成）
+function updatePageImage(idx, imageData) {
+  if (!currentOutline || !currentOutline.pages[idx]) return;
+  var card = document.querySelector('.page-card[data-idx="' + idx + '"]');
+  if (!card) return;
+  var imgContainer = card.querySelector('.img-container');
+  if (!imgContainer) return;
+  // 替换容器内容为已加载的图片
+  imgContainer.innerHTML = '<img src="' + imageData + '" style="width:100%;height:100%;object-fit:cover;display:block;">';
 }
 
 const INDUSTRY_KEYWORDS = {
@@ -1143,84 +1302,218 @@ const INDUSTRY_TEMPLATES = {
     name: '家电维修',
     chapters: [
       {title:'维修前准备工作与安全须知', points:[
-        '安全第一：维修前必须拔掉电源插头，彻底断电，防止触电事故发生',
-        '准备工具：十字螺丝刀、一字螺丝刀、万用表、钳子、扳手、内六角套装',
-        '辅助材料：绝缘胶带、热缩管、扎带、润滑油、密封胶、清洁用品',
-        '环境准备：选择干燥通风、光线充足的平整工作台面，铺设防滑垫',
-        '资料准备：准备产品说明书、电路图，了解设备基本结构和工作原理',
-        '个人防护：佩戴绝缘手套、护目镜，穿防滑鞋，做好个人安全防护',
-        '拍照记录：拆解前对各部位拍照记录，便于后续组装时参考复原',
-        '配件准备：根据故障预判准备可能需要更换的易损件和备件'
+        '安全第一原则：维修前必须拔掉电源插头等待5分钟以上，让大容量电容充分放电',
+        '必备工具清单：十字/一字螺丝刀套装、数字万用表、电烙铁、焊锡丝、助焊剂、吸锡器',
+        '辅助工具：尖嘴钳、斜口钳、镊子、防静电手环、绝缘胶带、热缩管、扎带',
+        '检测仪器：万用表（电阻/电压/电容/二极管档）、钳形电流表、绝缘电阻表',
+        '环境要求：干燥通风工作台面、光线充足（建议配台灯）、铺设绝缘橡胶垫',
+        '个人防护：佩戴绝缘手套、护目镜，穿长袖工作服，摘除手表金属饰品',
+        '资料准备：下载产品电路图、维修手册，了解设备工作原理和元件布局',
+        '拍照记录原则：拆解每一步都拍照，记录螺丝位置、接线方向、元件朝向',
+        '配件预判：根据故障现象提前准备可能更换的保险管、电容、电阻、功率管等备件',
+        '工作台整理：将螺丝按拆解顺序分类放置在零件盒中，避免丢失和混淆'
       ]},
-      {title:'常见故障现象与原因分析', points:[
-        '故障一：设备完全不通电，指示灯不亮，检查电源线、保险丝、电源板',
-        '故障二：运行噪音大或有异响，检查电机轴承、皮带、紧固件是否松动',
-        '故障三：漏水/漏电问题，检查密封圈、管路连接、绝缘层是否破损',
-        '故障四：功能按键失灵无反应，检查控制面板、按键开关、接线端子',
-        '故障五：性能下降效果差，检查过滤网、管道是否堵塞，电机是否老化',
-        '故障六：中途停机不工作，检查温控器、水位传感器、安全开关是否触发',
-        '故障七：显示错误代码，对照说明书故障代码表定位具体故障部位',
-        '故障八：振动过大移位，检查水平调整、减震部件、配重是否正常'
+      {title:'电磁炉结构与工作原理', points:[
+        '电磁炉核心组成：线圈盘（励磁线圈）、IGBT功率管、整流桥堆、谐振电容、滤波电容',
+        '控制部分：MCU主控芯片、按键显示板、温度传感器（热敏电阻）、风扇散热系统',
+        '工作原理：交流电经整流桥变为直流电，IGBT高频开关使线圈盘产生交变磁场',
+        '涡流发热原理：交变磁场在铁质锅具底部产生涡流，涡流克服锅体内阻发热',
+        '关键电压：220V交流输入、310V直流母线、18V风扇/IGBT驱动、5V主控供电',
+        '同步电路：检测线圈盘两端电压过零点，控制IGBT在正确时刻导通和关断',
+        '保护电路：过压保护、欠压保护、过流保护、过热保护、干烧保护、锅具检测',
+        '散热系统：IGBT和整流桥固定在散热片上，风扇强制风冷，温度传感器监控温度'
       ]},
-      {title:'设备拆解步骤详解', points:[
-        '第一步：断电断水，拆除所有外部连接管线，将设备移至便于操作位置',
-        '第二步：拆除外壳盖板，按顺序拧下固定螺丝，妥善分类存放螺丝',
-        '第三步：观察内部结构，拍照记录各部件位置和接线方式',
-        '第四步：按从外到内、从上到下顺序拆除相关面板和装饰件',
-        '第五步：拆除相关连接线，注意标记各插头位置和接线方向',
-        '第六步：拆卸故障相关部件，注意用力均匀，避免损坏塑料卡扣',
-        '第七步：取出待检修部件，放置在清洁的工作台上进行检查维修',
-        '第八步：拆解过程中遇到阻力不要强行拆卸，检查是否有遗漏螺丝'
+      {title:'万用表使用与电子元件基础', points:[
+        '电阻档使用：断电测量电阻值，判断电阻、线圈、保险丝通断，注意量程选择',
+        '电压档使用：带电测量交直流电压，红表笔接正黑表笔接负，注意量程从大到小',
+        '二极管档：测量二极管正向压降（硅管0.5-0.7V，锗管0.2-0.3V），判断PN结好坏',
+        '电容档：测量电容容量，对比标称值判断是否失容、漏电或击穿短路',
+        '蜂鸣通断档：快速判断线路通断、保险丝好坏、开关触点是否导通',
+        '电阻识别：色环电阻读数方法（棕1红2橙3黄4绿5蓝6紫7灰8白9黑0）',
+        '电容识别：电解电容有极性（长正短负），瓷片电容无极性，注意耐压值',
+        '二极管特性：单向导通，正向有压降反向截止，整流桥由四个二极管组成',
+        'IGBT管：场效应管和双极型管复合，三个引脚G极（栅极）、C极（集电极）、E极（发射极）',
+        '热敏电阻：电磁炉常用NTC负温度系数热敏电阻，常温阻值通常为100KΩ'
       ]},
-      {title:'核心部件检测方法', points:[
-        '电机检测：用万用表电阻档测量绕组电阻，判断是否断路或短路',
-        '电容检测：用万用表电容档测量容量，对比标称值判断是否失容',
-        '传感器检测：测量不同工况下传感器阻值/电压变化，判断是否正常',
-        '开关检测：通断档测量开关按下和松开时的通断状态是否正常',
-        '保险丝/保险管：目视检查是否熔断，用万用表通断档确认是否导通',
-        '加热管检测：测量加热管电阻值，正常应有几十欧姆电阻，无穷大为损坏',
-        '电磁阀检测：通电测试是否有吸合动作和声音，测量线圈电阻是否正常',
-        '电脑板检测：观察有无明显烧蚀、鼓包元件，测量各关键点电压是否正常'
+      {title:'电磁炉不通电故障检修', points:[
+        '故障现象：插电无任何反应，指示灯不亮，风扇不转，按键无响应',
+        '检查步骤1：先查电源插座是否有电，用其他电器确认插座正常',
+        '检查步骤2：检查电源线是否断路，用万用表通断档测量电源线两端',
+        '检查步骤3：拆开机器检查保险丝（玻璃保险管），熔断则说明后级有短路',
+        '保险丝熔断处理：不能直接更换保险，必须先查明短路原因排除故障',
+        '常见短路点：IGBT击穿短路（C-E极导通）、整流桥堆击穿、压敏电阻击穿',
+        'IGBT检测方法：万用表二极管档，红笔接E黑笔接C应有0.5V左右压降，反向不通',
+        '整流桥检测：交流输入端正反都不通，输出端正向导通反向截止',
+        '如果保险未断：检查5V和18V电源是否正常，查电源芯片、开关变压器',
+        '电源模块故障：VIPer12A/THX203等电源芯片损坏会导致无5V输出，整机不工作'
       ]},
-      {title:'常见故障维修实操', points:[
-        '不通电故障：先查电源线和保险丝，再查电源板变压器和整流电路',
-        '电机不转：检查电容是否失容，再查电机绕组，最后查控制板继电器',
-        '漏水问题：更换破损密封件，紧固松动接头，补焊开裂管路',
-        '异响故障：更换磨损轴承，调整皮带松紧度，紧固松动螺丝',
-        '按键失灵：更换失效微动开关或薄膜开关，清理氧化触点',
-        '性能不足：清洗堵塞过滤网和管道，更换老化磨损部件',
-        '报警故障：根据故障代码对应检修相关传感器和执行器',
-        '更换配件时选用同规格原厂或优质替代件，确保安装到位'
+      {title:'电磁炉通电显示但不加热检修', points:[
+        '故障现象：指示灯亮、按键正常、有报警声，但放上锅具不加热或加热极慢',
+        '第一步检查：锅具是否合适，必须使用铁质、不锈钢等导磁材料平底锅',
+        '锅具检测电路：互感器或电流检测电路检测是否有锅具，不正常则不启动加热',
+        '同步电路检测：测量几个大电阻（通常240KΩ/330KΩ/470KΩ）是否变值开路',
+        '大电阻故障：同步电路大功率电阻变值是电磁炉最常见故障，导致不加热或间歇加热',
+        '谐振电容检查：0.27μF/0.3μF/0.33μF谐振电容（蓝色安规电容）容量下降会导致不加热',
+        '滤波电容检查：4μF/5μF/10μF滤波电容失容会导致310V电压不足，加热功率不够',
+        'IGBT驱动电路：检查8050/8550驱动三极管、18V稳压管是否正常',
+        '可调电阻检查：功率调节可调电阻（501/102）接触不良会导致功率调不上',
+        '电流互感器：次级绕组是否开路，整流二极管是否损坏'
       ]},
-      {title:'部件清洁保养方法', points:[
-        '日常清洁：使用软布擦拭外表面，顽固污渍用中性清洁剂擦拭',
-        '深度清洁：定期清理内部积尘、绒毛、污垢，防止堵塞影响散热',
-        '润滑保养：对运转轴承、活动部件定期加注润滑油，减少磨损',
-        '除垢处理：涉水设备定期使用专用除垢剂清除水垢，提升热效率',
-        '滤网更换：按使用周期更换过滤网、滤芯，保持气路/水路通畅',
-        '密封检查：定期检查各密封圈、密封垫老化情况，及时更换防漏',
-        '接线检查：检查各接线端子有无松动氧化，重新紧固确保接触良好',
-        '防锈处理：金属部件涂抹防锈脂，防止锈蚀影响使用寿命'
+      {title:'电磁炉加热中断/间歇加热检修', points:[
+        '故障现象：刚开始加热正常，工作几分钟后停止加热或断断续续加热',
+        '散热不良：风扇不转或转速慢导致IGBT过热保护停机，查风扇和驱动电路',
+        '风扇检查：测量风扇两端是否有12-18V电压，有电压不转则风扇损坏需更换',
+        '风扇驱动电路：驱动三极管S8050是否损坏，风扇控制信号是否正常',
+        '温度传感器故障：线盘中间热敏电阻（100KΩ）变值导致误判过热保护',
+        '热敏电阻检测：常温下约100KΩ，加热时阻值下降，开路或短路都会报警停机',
+        'IGBT温度传感器：IGBT散热片上的热敏电阻同样检测是否变值',
+        '电压检测电路：电压检测大电阻变值导致误判过压欠压保护',
+        '大电阻变值：同步电路的大功率电阻受热后阻值变化，导致工作不稳定',
+        '虚焊问题：大电流部位（IGBT引脚、整流桥引脚、线圈盘接线柱）虚焊导致间歇工作'
       ]},
-      {title:'组装复原与调试', points:[
-        '按拆解相反顺序进行组装，参考之前拍摄的照片正确复位各部件',
-        '接线严格按标记复原，确保插头插到位，端子螺丝拧紧无松动',
-        '所有螺丝按原位装回，力度适中，避免滑丝或损坏塑料件',
-        '手动转动检查运转部件是否顺畅，有无卡滞、摩擦干涉情况',
-        '检查所有密封件安装到位，管路连接正确，无错接漏接',
-        '先不装外壳通电空载试运行，观察有无异常声音、火花、冒烟',
-        '测试各项功能是否正常工作，验证故障已彻底排除',
-        '确认一切正常后装回所有外壳盖板，清洁设备表面'
+      {title:'电磁炉显示故障代码检修', points:[
+        '故障代码E0/E1：通常为内部电路故障或无锅具/锅具不适用，先换合适锅具测试',
+        '故障代码E2/E3：IGBT温度传感器开路/短路或过热保护，查热敏电阻和散热',
+        '故障代码E4/E5：电压过高/过低保护，查电压检测电路大电阻和整流桥',
+        '故障代码E6：炉面温度过高（干烧保护），查面板热敏电阻和风扇散热',
+        '故障代码E7/E8：线圈盘温度传感器故障，查线盘中间的热敏电阻',
+        '维修方法：根据故障代码含义定位到具体电路，重点查相关传感器和检测电阻',
+        '传感器检测技巧：对比测量两个温度传感器阻值，常温下应接近（约100KΩ）',
+        '大电阻排查法：逐一测量同步电路和电压检测电路的大功率电阻（2W-3W）阻值',
+        '常见失效模式：大电阻阻值变大（如从240K变到500K以上）是最常见隐性故障',
+        '代码表参考：不同品牌代码含义不同，上网搜索对应品牌型号的故障代码表'
       ]},
-      {title:'维修注意事项与总结', points:[
-        '全程牢记安全第一，带电检测必须有专业人员监护，做好绝缘防护',
-        '遇到不确定的故障不要盲目拆解，多查阅资料或咨询专业人员',
-        '更换配件优先选用原厂配件，代用配件需确认参数规格完全一致',
-        '维修后做好记录，记录故障现象、原因、解决方法，积累维修经验',
-        '对于电脑板损坏等复杂故障，建议更换总成或送专业维修点维修',
-        '老旧设备维修需评估维修价值，维修成本过高建议更换新设备',
-        '定期保养可大幅延长设备使用寿命，减少故障发生概率',
-        '如果自己没有把握，建议联系专业售后服务人员上门维修'
+      {title:'电磁炉按键失灵/显示异常检修', points:[
+        '按键全部失灵：检查5V供电是否正常，排线是否接触不良，主控晶振是否损坏',
+        '个别按键失灵：微动开关触点氧化接触不良，直接更换同规格轻触按键（6x6x5mm）',
+        '按键乱跳/自动触发：按键漏电或电路板受潮，清洗电路板烘干后更换所有按键',
+        '数码管缺笔画：数码管本身损坏或驱动三极管/电阻虚焊，补焊或更换数码管',
+        '指示灯不亮：LED灯珠烧坏或限流电阻开路，更换对应LED（通常3mm红/绿发光管）',
+        '显示板排线故障：显示板与主板连接排线氧化接触不良，清洗排线头或更换排线',
+        '触摸按键失灵：触摸弹簧变形、距离面板太远、感应IC（如VK3606）损坏',
+        '显示错乱复位：5V电源纹波大，查滤波电容（1000μF/25V和104瓷片电容）',
+        '蜂鸣器不响：蜂鸣器本身损坏或驱动三极管8050损坏，更换即可',
+        '维修经验：按键问题建议一次性全部更换所有微动开关，避免反复维修'
+      ]},
+      {title:'电磁炉IGBT反复烧坏检修', points:[
+        '严重故障：更换IGBT后一通电又烧，说明有其他隐患未排除，不可反复试机',
+        '烧IGBT原因1：谐振电容（0.3μF）容量下降或失容，导致谐振电压过高击穿IGBT',
+        '烧IGBT原因2：滤波电容（5μF）容量不足，310V直流含有大量交流纹波',
+        '烧IGBT原因3：同步电路大电阻变值，导致IGBT导通时机不对造成硬开关击穿',
+        '烧IGBT原因4：IGBT驱动电路元件损坏（8050/8550、18V稳压管），G极驱动信号异常',
+        '烧IGBT原因5：18V供电电压偏高或偏低，导致IGBT驱动不足或过驱动',
+        '烧IGBT原因6：散热不良（风扇不转、导热硅脂干涸），IGBT过热烧毁',
+        '更换IGBT注意：必须同时检查谐振电容、滤波电容、同步大电阻、驱动对管',
+        '正确步骤：更换IGBT前先不接线圈盘，通电测量各电压正常再接线圈盘试机',
+        '安全措施：更换IGBT后在电源回路串联100W灯泡做限流保护，灯泡常亮说明还有短路'
+      ]},
+      {title:'电磁炉噪音大/有异响检修', points:[
+        '风扇噪音：风扇轴承缺油磨损，加注润滑油或直接更换散热风扇（18V直流风扇）',
+        '线圈盘异响：线圈盘固定螺丝松动，通电后线圈盘振动产生嗡嗡声，拧紧螺丝',
+        '硅钢片松动：线圈盘磁条松动，用绝缘胶重新固定磁条',
+        '锅底异响：锅具底部不平或太薄，更换平整厚实的铁质锅具测试',
+        '高频啸叫：谐振电容或IGBT引脚虚焊打火，补焊可疑焊点',
+        '哒哒声：继电器吸合断开声音频繁，可能是温控电路误动作，查温度传感器',
+        '电流声大：310V滤波电容容量不足导致电流纹波大，更换5μF滤波电容',
+        '外壳共振：底壳螺丝松动或外壳变形导致共振，紧固螺丝调整外壳',
+        '元件打火：电路板高压部分有积尘油污受潮，断电清洗电路板烘干处理',
+        '判断方法：开盖通电观察异响来源，注意安全距离避免触电'
+      ]},
+      {title:'设备拆解步骤与注意事项', points:[
+        '第一步：断电后等待至少5分钟，让高压电容放电完毕再开始拆解',
+        '第二步：将电磁炉倒扣在软布上，拧下底壳所有固定螺丝（注意螺丝长短规格）',
+        '第三步：轻轻翻开底壳，注意内部排线连接，不要用力扯断排线',
+        '第四步：拔掉显示板排线、风扇插头、线圈盘接线端子，做好位置标记',
+        '第五步：取下线圈盘（注意线圈盘方向和固定螺丝），放在安全位置',
+        '第六步：观察主板布局，拍照记录各元件位置和接线方式',
+        '第七步：如需拆下主板，拧下主板固定螺丝，取出主板进行检修',
+        '第八步：拆解过程中遇到卡扣不要硬撬，用塑料撬棒轻轻撬开',
+        '第九步：记录螺丝规格和位置，不同位置螺丝长短不同，装回时不能错装',
+        '第十步：陶瓷面板如果破裂需要更换时，用刀片清除旧胶和残胶，重新打704硅橡胶粘合'
+      ]},
+      {title:'焊接技术与元件更换技巧', points:[
+        '电烙铁选择：建议用30-60W可调温烙铁，温度设定300-350°C适合大多数焊接',
+        '焊接准备：烙铁头提前上锡保养，焊接前擦拭干净，保持烙铁头光亮挂锡',
+        '拆件技巧：拆直插元件时两边引脚交替加热拔出，或用吸锡器吸净焊锡再取下',
+        '贴片元件拆卸：用镊子夹住元件，两边引脚同时加热快速取下，避免烫坏焊盘',
+        '多引脚拆件：拆IGBT等多脚元件可用吸锡绳或热风枪，避免硬撬损坏电路板焊盘',
+        '焊接要点：元件引脚和焊盘都要加热，焊锡适量覆盖焊盘和引脚，形成光亮焊点',
+        '虚焊判断：焊点发暗不光滑、周围有裂纹、轻拨元件有晃动都是虚焊需要重焊',
+        '绝缘处理：更换元件后引脚剪短，高压部分套热缩管绝缘，防止短路',
+        '导热硅脂：重装IGBT和整流桥时必须在与散热片接触面涂薄薄一层导热硅脂',
+        '焊接后检查：目视检查所有焊点无虚焊连锡，用无水酒精清洗焊剂残留'
+      ]},
+      {title:'电路板检测与故障定位', points:[
+        '观察法：目视检查电路板有无烧焦、鼓包电容、烧黑电阻、脱焊虚焊痕迹',
+        '电阻测量法：断电状态下测量关键元件阻值，与正常值对比找出异常元件',
+        '电压测量法：通电状态下测量关键点电压（310V、18V、5V），缩小故障范围',
+        '电流测量法：用钳形表测量整机工作电流，正常工作电流3-8A（根据功率）',
+        '代换法：对怀疑损坏的电容、电阻等元件直接用好件替换验证（特别适合隐性故障）',
+        '分割法：断开部分电路缩小故障范围，如断开风扇判断是风扇还是驱动电路问题',
+        '信号追踪法：从后级向前级逐级测量信号，找到信号消失的位置就是故障点',
+        '冷热对比法：开机一段时间后用手触摸元件温度，异常发热元件可能有问题（注意防触电）',
+        '常见故障元件排名：大电阻变值 > 电容失容 > 按键失灵 > IGBT击穿 > 传感器变值',
+        '维修记录：每次维修记录故障现象、测量数据、更换元件，积累经验提高效率'
+      ]},
+      {title:'元件选型与配件更换指南', points:[
+        'IGBT选型：常用型号H20R1203/FGA25N120/H25R1202，注意电流20-25A耐压1200V带阻尼',
+        '整流桥：选15-25A/600V以上整流桥堆，如D15XB60/D25XB80/GBJ2510',
+        '谐振电容：必须用电磁炉专用MKPH电容，0.27μF/0.3μF/0.33μF/1200V，不可用普通电容代换',
+        '滤波电容：4μF/5μF/10μF/400V（或275VAC），用CBB61或MKP电容，不可用电解电容代换',
+        '保险丝：必须用延时保险管（T级），常用10A/15A/250V，不可用普通保险丝或铜丝代替',
+        '热敏电阻：电磁炉用NTC 100KΩ/3950K热敏电阻，注意探头形状和安装方式',
+        '风扇：18V直流无刷风扇，注意尺寸（8025/9025/12038）和接线方式（2线/3线）',
+        '微动开关：6x6x5mm立式轻触开关，建议一次买多只备用，容易批量失效',
+        '导热硅脂：选用导热系数高的白色或灰色硅脂，不要用太多涂薄薄一层即可',
+        '购买渠道：本地电子市场或网购（淘宝/拼多多搜索"电磁炉配件包"很方便）'
+      ]},
+      {title:'清洁保养与日常维护', points:[
+        '日常清洁：使用完待冷却后用湿抹布擦拭面板，不要用水直接冲洗机身',
+        '深度清洁：每3-6个月拆开清理内部油污灰尘，用毛刷+吹风机清除积尘',
+        '风扇保养：清理风扇叶片灰尘，风扇轴承加注少量缝纫机油润滑',
+        '散热通道：确保进风口和出风口通畅，不要在炉底垫报纸桌布堵塞通风',
+        '电路板防潮：厨房油烟大的环境，电路板容易积油污受潮，定期清洁烘干',
+        '接线检查：定期检查电源线有无破损老化，内部接线端子有无松动烧蚀',
+        '螺丝紧固：使用一段时间后检查内部螺丝有无松动，特别是线圈盘和散热片螺丝',
+        '面板保养：陶瓷面板避免重击，不要直接在面板上切东西，溢出食物及时清理',
+        '长期不用：长时间不使用应清洁干净晾干后存放，拔掉电源插头防潮防尘',
+        '使用习惯：不要空烧干烧，锅具放置居中，使用后等风扇停转再拔插头'
+      ]},
+      {title:'常见家电通用维修技巧', points:[
+        '微波炉不加热：查高压保险丝、磁控管、高压二极管、高压电容（注意高压放电）',
+        '洗衣机不脱水：查门安全开关、水位传感器、排水泵、电机碳刷、电脑板',
+        '冰箱不制冷：查压缩机启动器/保护器、温控器、制冷剂是否泄漏、压缩机本身',
+        '空调不制冷：查遥控器设置、滤网是否脏堵、外机是否启动、缺氟需专业加氟',
+        '热水器不点火：查水压、燃气压力、点火针、电池、电磁阀、水流传感',
+        '电饭煲不加热：查温度保险丝（底部超温熔断器）、磁钢温控器、发热盘、按键开关',
+        '电压力锅故障：查压力开关、温度传感器、密封圈、浮子阀、排气阀',
+        '油烟机故障：查电容（电机不转最常见）、电机轴承油污卡住、按键开关、照明',
+        '通用经验：家电故障80%是小问题（保险烧、线断、触点接触不良、电容失容）',
+        '安全提醒：涉及燃气、高压（微波炉高压4000V）、制冷剂的故障建议找专业人员'
+      ]},
+      {title:'组装复原与通电测试', points:[
+        '组装前检查：确认所有故障已排除，更换的元件焊接牢固，没有多余螺丝和焊锡渣',
+        '清洁内部：用毛刷和吹风机清理电路板和机内灰尘异物，确保无短路隐患',
+        '按序组装：按照拆解相反顺序装回，参考拍照记录正确安装各部件位置',
+        '接线复原：所有插头按标记插回原位，端子插到底卡紧，排线插好压牢',
+        '螺丝安装：螺丝按原位置装回，不要拧太紧（塑料柱容易滑丝），受力均匀',
+        '线圈盘安装：线圈盘必须放平，螺丝对角均匀拧紧，距离陶瓷面板间隙均匀',
+        '接线柱检查：大电流接线柱（线圈盘、电源线）必须拧紧，防止接触不良打火',
+        '空载测试：先不放锅具不盖底壳，短暂通电观察有无异常声音、火花、冒烟',
+        '带载测试：盖好底壳放上锅具加水，通电测试各功能按键和加热是否正常',
+        '连续测试：烧水测试15-20分钟，观察加热是否连续、风扇运转正常、无异常噪音'
+      ]},
+      {title:'维修安全规范与职业素养', points:[
+        '安全第一：任何时候都不要抱有侥幸心理，断电放电后再操作，带电操作需专人监护',
+        '防触电要点：单手操作、脚下垫绝缘垫、不触碰带电部位、测量电压时手不碰表笔金属部分',
+        '电容放电：大容量电容（特别是微波炉高压电容）断电后仍存电，必须用绝缘螺丝刀放电',
+        '防火措施：工作区域不放易燃物，准备灭火器（干粉或二氧化碳），焊接后检查烙铁断电',
+        'ESD防护：维修电路板佩戴防静电手环，特别是CMOS芯片和MCU防止静电损坏',
+        '配件质量：不要使用劣质配件，特别是IGBT、电容等关键部件关乎安全',
+        '诚实报价：维修前评估费用告知客户，更换配件如实说明，不夸大故障不欺骗客户',
+        '保修承诺：更换配件提供至少1-3个月保修期，增强客户信任',
+        '工具保养：定期校准万用表、保养电烙铁、整理工具箱，保持专业形象',
+        '持续学习：家电技术更新快，关注新型号电路变化，加入维修交流群学习新技术'
       ]}
     ]
   },
@@ -1435,7 +1728,29 @@ const CHAPTER_SCENE_RULES = [
   // 营销特有 - 品牌/推广/广告/新媒体类
   {patterns:['品牌','推广','广告','新媒体','抖音','短视频','直播','内容','流量','转化','获客'],scene:'marketing'},
   // 新能源特有 - 光伏/风电/储能/电池类
-  {patterns:['光伏','风电','储能','电池','锂电','太阳能','风能','充电','电动汽车','碳中和'],scene:'newenergy'}
+  {patterns:['光伏','风电','储能','电池','锂电','太阳能','风能','充电','电动汽车','碳中和'],scene:'newenergy'},
+  // 汽车维修特有
+  {patterns:['汽车','车辆','发动机','变速箱','刹车','轮胎','汽修','4S店','汽车维修','保养','底盘'],scene:'automotive'},
+  // 农业特有
+  {patterns:['种植','养殖','农业','农田','作物','农机','灌溉','施肥','收割','温室','大棚','畜牧'],scene:'agriculture'},
+  // 物流特有
+  {patterns:['物流','仓储','配送','快递','供应链','运输','货运','仓库','分拣','发货','库存'],scene:'logistics'},
+  // 建筑地产特有
+  {patterns:['施工','建筑','工程','楼盘','工地','装修','建材','房产','开发','混凝土','钢筋'],scene:'construction'},
+  // 餐饮特有
+  {patterns:['餐厅','餐饮','菜品','菜单','厨师','食材','烹饪','饭店','酒楼','美食','上菜','服务'],scene:'restaurant'},
+  // 健身特有
+  {patterns:['健身','运动','锻炼','训练','健身房','瑜伽','减肥','增肌','体能','教练','器材'],scene:'fitness'},
+  // 美妆特有
+  {patterns:['美容','化妆','护肤','美妆','彩妆','皮肤','面膜','口红','香水','美发','美甲','SPA'],scene:'beauty'},
+  // 宠物特有
+  {patterns:['宠物','猫狗','犬','猫','喂养','疫苗','绝育','宠物医院','美容','训练','寄养'],scene:'pet'},
+  // 母婴特有
+  {patterns:['母婴','孕产','婴儿','新生儿','育儿','奶粉','纸尿裤','产后','孕期','早教','辅食'],scene:'motherbaby'},
+  // 电商特有
+  {patterns:['电商','网购','店铺','直播带货','商品','订单','发货','客服','网店','淘宝','京东','拼多多'],scene:'ecommerce'},
+  // 房产特有
+  {patterns:['房产','楼盘','户型','物业','小区','房价','买房','卖房','装修','家居','置业'],scene:'realestate'}
 ];
 
 // 场景到详细图片描述的映射（专业摄影风格）
@@ -1501,10 +1816,14 @@ const SCENE_PROMPTS = {
     'pathologist looking through microscope in laboratory, medical research setting, professional lab photography, scientific atmosphere'
   ],
   repair: [
-    'professional technician repairing washing machine with tools, home appliance repair service, authentic working scene, natural indoor lighting',
-    'close-up of hands using wrench to fix mechanical parts, maintenance work detail shot, industrial repair photography, workshop lighting',
-    'repairman in uniform opening appliance back panel with screwdriver, home service call, authentic repair process photography',
-    'organized tools laid out on repair workbench, wrench screwdriver multimeter, professional technician workspace, workshop photography'
+    'professional technician repairing induction cooker circuit board with multimeter, electronic components visible, home appliance repair service, authentic working scene, natural indoor lighting',
+    'close-up of hands using screwdriver to fix circuit board inside appliance, multimeter testing electronic components, maintenance work detail shot, workshop lighting',
+    'repairman in uniform opening appliance back panel with screwdriver, home service call, authentic repair process, tools laid out on workbench',
+    'organized repair tools laid out on workbench, multimeter screwdriver pliers wire cutters, professional technician workspace, workshop photography',
+    'technician testing appliance circuit with multimeter probes close-up, electronic repair diagnosis, circuit board with wires and components visible',
+    'home appliance disassembled on repair table with parts organized neatly, screwdriver and tools beside, step-by-step repair process photography',
+    'close-up of soldering iron repairing circuit board connection, electronic component repair, precise technical work, workshop lighting',
+    'technician replacing damaged component on circuit board, appliance repair service, hands working carefully with tools, professional repair photography'
   ],
   cooking: [
     'professional chef cooking in modern kitchen, flames in pan, action shot of culinary preparation, restaurant kitchen photography, warm lighting',
@@ -1547,6 +1866,72 @@ const SCENE_PROMPTS = {
     'wind turbines generating electricity on wind farm at sunset, green energy landscape, environmental photography, golden hour light',
     'electric vehicle charging at modern EV charging station, clean transportation technology, new energy automotive photography',
     'close-up of lithium battery cells for energy storage, high-tech battery technology, clean energy research, laboratory photography'
+  ],
+  automotive: [
+    'professional car mechanic repairing vehicle engine in auto repair shop, tools and equipment around, authentic workshop photography, bright fluorescent lighting',
+    'modern car on hydraulic lift in automotive service center, technician inspecting underside, professional auto maintenance photography',
+    'close-up of car engine bay with mechanic hands using wrench, auto repair detail shot, garage workshop photography',
+    'car diagnostic computer connected to vehicle, technician reading error codes on screen, modern auto service photography'
+  ],
+  agriculture: [
+    'golden wheat field at sunset with agricultural harvester combine working, modern farming machinery, professional agriculture photography, warm golden light',
+    'greenhouse interior with rows of vegetables growing, modern agriculture technology, controlled environment farming, professional farm photography',
+    'farmer using tablet computer to monitor crops in field, precision agriculture technology, smart farming, bright daylight',
+    'aerial drone view of organized farmland with different crops growing, modern agricultural landscape, rural photography from above'
+  ],
+  logistics: [
+    'modern warehouse interior with high shelves and forklift moving goods, logistics distribution center, professional warehouse photography, bright lighting',
+    'cargo containers stacked at shipping port terminal with cranes, global trade logistics, professional industrial photography, blue hour light',
+    'delivery van unloading packages at distribution hub, logistics delivery service, authentic courier scene, natural daylight',
+    'logistics manager using tablet to check inventory in warehouse, supply chain management, professional industrial photography'
+  ],
+  construction: [
+    'construction site with crane and workers in safety gear building modern structure, professional construction photography, bright daylight',
+    'architect wearing hard hat reviewing blueprints at building site, construction project management, professional engineering photography',
+    'close-up of construction worker hands using power tool on steel beam, industrial construction detail, authentic work photography',
+    'modern building under construction with scaffolding against blue sky, real estate development, architectural photography'
+  ],
+  restaurant: [
+    'professional chef plating dish in restaurant kitchen, fine dining food presentation, culinary art photography, warm kitchen lighting',
+    'elegant restaurant dining room with tables set for service, warm ambient lighting, hospitality interior photography',
+    'waiter serving food to customers at restaurant table, dining service scene, warm restaurant atmosphere photography',
+    'fresh ingredients and spices arranged in restaurant kitchen, professional food preparation, culinary photography'
+  ],
+  fitness: [
+    'person working out with dumbbells in modern gym, fitness training scene, professional health club photography, bright gym lighting',
+    'yoga class in session at bright fitness studio, people doing stretching exercises, wellness lifestyle photography, natural light',
+    'close-up of athletic hands gripping barbell weights, fitness training detail shot, gym workout photography, dramatic lighting',
+    'personal trainer guiding client on exercise machine, professional fitness coaching, modern gym interior photography'
+  ],
+  beauty: [
+    'professional makeup artist applying cosmetics to model in beauty salon, makeup application close-up, beauty industry photography, soft lighting',
+    'skincare products beautifully arranged on white marble surface with flowers, cosmetics flat lay photography, soft natural lighting',
+    'woman receiving facial treatment at beauty spa, skincare service, professional spa photography, warm relaxing atmosphere',
+    'hair stylist cutting hair in modern hair salon, professional hairdressing service, salon interior photography'
+  ],
+  pet: [
+    'happy golden retriever dog playing in green park, pet animal photography, bright natural daylight, joyful pet scene',
+    'veterinarian examining cute cat on examination table in animal clinic, professional pet healthcare photography, clinical lighting',
+    'well-groomed dog at pet grooming salon, pet care service, professional animal grooming photography',
+    'various pet supplies and toys arranged on wooden floor, pet shop products, pet industry photography'
+  ],
+  motherbaby: [
+    'mother holding newborn baby in warm softly lit room, maternity and newborn photography, tender loving atmosphere, warm tones',
+    'pregnant woman gently touching belly in soft natural light, maternity photography, warm peaceful atmosphere',
+    'baby products and toys arranged on soft blanket, infant care items, baby industry photography, soft pastel colors',
+    'pediatrician examining baby with stethoscope in clinic, child healthcare, professional medical photography for infants'
+  ],
+  ecommerce: [
+    'person shopping online with credit card and smartphone, e-commerce checkout on laptop, modern online shopping photography',
+    'cardboard boxes and packages ready for shipping from online store orders, e-commerce fulfillment, product delivery photography',
+    'customer browsing products on mobile shopping app, digital retail experience, e-commerce technology photography',
+    'online store warehouse worker scanning products for shipment, e-commerce logistics, professional fulfillment center photography'
+  ],
+  realestate: [
+    'modern luxury house exterior with beautiful landscaped garden, real estate property photography, bright daylight blue sky',
+    'bright modern living room interior with large windows and stylish furniture, home staging photography, natural lighting',
+    'real estate agent showing house keys to new homeowners, property purchase, professional real estate photography',
+    'modern kitchen interior with stainless steel appliances and marble countertops, home interior design photography, bright lighting'
   ]
 };
 
@@ -1668,44 +2053,671 @@ const INDUSTRY_COVER_IMAGES = {
 
 // 根据章节标题智能匹配场景
 function detectChapterScene(chapterTitle, industry) {
-  if (!chapterTitle) return 'trend';
+  if (!chapterTitle) return getIndustryDefaultScene(industry);
   const title = chapterTitle.toLowerCase();
-  for (let rule of CHAPTER_SCENE_RULES) {
+
+  // 先精确匹配行业特有子场景（更细分），然后匹配通用规则，最后用行业默认
+  // 维修行业子场景
+  if (industry === 'repair' || industry === 'automotive' || industry === 'tutorial') {
+    if (/(故障|问题|现象|原因|分析|诊断|检测|常见)/.test(title)) return 'repair'; // 故障诊断场景
+    if (/(拆解|拆卸|步骤|分解|打开)/.test(title)) return 'repair';
+    if (/(维修|修复|修理|换件|更换|处理)/.test(title)) return 'repair';
+    if (/(准备|工具|材料|设备|安全须知)/.test(title)) return 'repair';
+    if (/(清洁|保养|维护|清洗|日常)/.test(title)) return 'repair';
+    if (/(电机|电路|电路板|主板|核心部件)/.test(title)) return 'repair';
+    if (/(安装|组装|装配|调试|复原|回装)/.test(title)) return 'repair';
+  }
+
+  // 医疗行业子场景
+  if (industry === 'medical' || industry === 'treatment') {
+    if (/(症状|病因|表现|临床)/.test(title)) return 'treatment';
+    if (/(诊断|检查|鉴别|影像|检验)/.test(title)) return 'medical_imaging';
+    if (/(治疗|手术|疗法|用药|方案)/.test(title)) return 'treatment';
+    if (/(护理|康复|术后|恢复)/.test(title)) return 'treatment';
+  }
+
+  // 餐饮/菜谱子场景
+  if (industry === 'recipe' || industry === 'restaurant') {
+    if (/(食材|配料|准备|原料|材料)/.test(title)) return 'cooking';
+    if (/(做法|步骤|烹饪|制作|下锅|炒|煮)/.test(title)) return 'cooking';
+    if (/(成品|摆盘|出锅|装盘|调味)/.test(title)) return 'cooking';
+  }
+
+  // 旅游子场景
+  if (industry === 'travel') {
+    if (/(景点|风景|推荐|打卡|美景)/.test(title)) return 'travel_scene';
+    if (/(攻略|路线|行程|交通|住宿)/.test(title)) return 'travel_scene';
+  }
+
+  // 教育子场景
+  if (industry === 'edu') {
+    if (/(课程|教学|课堂|方法)/.test(title)) return 'classroom';
+    if (/(考试|备考|复习|测试)/.test(title)) return 'classroom';
+  }
+
+  // 新能源子场景
+  if (industry === 'newenergy') {
+    if (/(光伏|太阳能|电池板)/.test(title)) return 'newenergy';
+    if (/(风电|风力|风机)/.test(title)) return 'newenergy';
+    if (/(电动汽车|充电桩|电池)/.test(title)) return 'newenergy';
+  }
+
+  // 通用规则精确匹配（避免宽泛关键词误匹配，不使用太泛的词如"安全""分析"）
+  const preciseRules = [
+    {patterns:['架构','技术架构','系统建设','技术方案','平台架构'],scene:'architecture'},
+    {patterns:['解决方案','应用场景','典型应用','落地实践','实施方案'],scene:'application'},
+    {patterns:['规划','路线图','里程碑','实施计划','推进计划'],scene:'planning'},
+    {patterns:['数据分析','数据统计','效益分析','投资回报','ROI','财务报表'],scene:'data'},
+    {patterns:['风险防控','安全防护','安全保障','网络安全','信息安全','数据安全','应急响应'],scene:'security'},
+    {patterns:['团队建设','人才培养','组织架构','绩效考核','人力资源'],scene:'team'},
+    {patterns:['总结','展望','结语','未来展望','发展趋势'],scene:'future'},
+    {patterns:['背景','趋势','现状','发展现状','行业背景','市场概况'],scene:'trend'}
+  ];
+  for (let rule of preciseRules) {
     for (let pattern of rule.patterns) {
       if (title.includes(pattern.toLowerCase())) {
         return rule.scene;
       }
     }
   }
-  return 'trend'; // 默认场景
+
+  // 未匹配到任何规则时，返回行业默认场景
+  return getIndustryDefaultScene(industry);
 }
+
+// 行业默认场景映射（未匹配到章节关键词时使用行业专属场景）
+function getIndustryDefaultScene(industry) {
+  const industryDefaultMap = {
+    'medical': 'treatment', 'treatment': 'treatment',
+    'repair': 'repair', 'tutorial': 'repair', 'automotive': 'automotive',
+    'recipe': 'cooking', 'restaurant': 'restaurant',
+    'travel': 'travel_scene',
+    'edu': 'classroom',
+    'finance': 'finance',
+    'law': 'law',
+    'marketing': 'marketing', 'ecommerce': 'ecommerce',
+    'newenergy': 'newenergy',
+    'agriculture': 'agriculture',
+    'logistics': 'logistics',
+    'construction': 'construction', 'realestate': 'realestate',
+    'fitness': 'fitness',
+    'beauty': 'beauty',
+    'pet': 'pet',
+    'motherbaby': 'motherbaby'
+  };
+  return industryDefaultMap[industry] || 'trend';
+}
+
+// 行业英文搜索关键词（用于Unsplash图片搜索和prompt增强）
+const INDUSTRY_KEYWORDS_EN = {
+  ai: 'artificial intelligence technology',
+  digital: 'digital business technology',
+  medical: 'medical healthcare hospital',
+  treatment: 'medical treatment doctor hospital',
+  edu: 'education classroom learning',
+  finance: 'finance business banking',
+  security: 'cybersecurity technology security',
+  newenergy: 'renewable energy solar wind',
+  ecommerce: 'ecommerce online shopping',
+  marketing: 'marketing business advertising',
+  realestate: 'real estate house property',
+  gov: 'government city public',
+  enterprise: 'business corporate office',
+  repair: 'repair tools maintenance technician',
+  automotive: 'car auto repair mechanic',
+  recipe: 'food cooking kitchen',
+  travel: 'travel landscape tourism',
+  law: 'law legal lawyer office',
+  agriculture: 'agriculture farming farm',
+  logistics: 'logistics warehouse delivery',
+  construction: 'construction building site',
+  restaurant: 'restaurant food dining chef',
+  fitness: 'fitness gym exercise workout',
+  beauty: 'beauty spa skincare cosmetics',
+  pet: 'pet animal dog cat',
+  motherbaby: 'mother baby newborn family',
+  tutorial: 'learning education study',
+  general: 'business professional office'
+};
 
 // 生成高度专业的图片prompt（英文，用于AI图片生成）
+// 改进：基于章节标题和行业生成更精确的场景描述，使用稳定选择而非随机
 function generateImagePrompt(industry, chapterTitle, topic, pageType) {
-  let promptPool;
+  var scene;
+  var prompts;
 
   if (pageType === 'cover') {
-    promptPool = INDUSTRY_COVER_IMAGES[industry] || INDUSTRY_COVER_IMAGES['general'];
+    prompts = INDUSTRY_COVER_IMAGES[industry] || INDUSTRY_COVER_IMAGES['general'];
+    scene = 'cover';
   } else {
-    const scene = detectChapterScene(chapterTitle, industry);
-    promptPool = SCENE_PROMPTS[scene] || SCENE_PROMPTS['trend'];
+    scene = detectChapterScene(chapterTitle, industry);
+    prompts = SCENE_PROMPTS[scene] || SCENE_PROMPTS['trend'];
   }
 
-  // 选择一个场景描述，保持简洁提高生成成功率
-  const basePrompt = promptPool[Math.floor(Math.random() * promptPool.length)];
-  // 简洁质量修饰词，避免prompt过长
-  const qualityModifiers = 'professional photography, photorealistic, high quality, natural lighting';
-  return encodeURIComponent(basePrompt + ', ' + qualityModifiers);
+  // 使用章节标题的hashCode稳定选择prompt
+  var titleHash = Math.abs(hashCode((chapterTitle||'') + '_' + (topic||'') + '_' + (pageType||'content')));
+  var basePrompt = prompts[titleHash % prompts.length];
+
+  // 行业关键词（简短）
+  var industryKw = INDUSTRY_KEYWORDS_EN[industry] || INDUSTRY_KEYWORDS_EN['general'];
+
+  // 根据章节标题生成具体场景描述（简短）
+  var sceneDetail = generateSceneDetail(chapterTitle, industry);
+
+  // 简洁组合：basePrompt + sceneDetail + industryKw，不堆叠质量修饰词（加快生成速度）
+  var fullPrompt = basePrompt;
+  if (sceneDetail) {
+    fullPrompt += ', ' + sceneDetail;
+  }
+  fullPrompt += ', ' + industryKw;
+
+  return encodeURIComponent(fullPrompt);
 }
 
-// 获取图片URL（用于预览和重新配图）
-function getImageUrl(industry, chapterTitle, topic, idx, pageType, seedOffset) {
+// 根据章节标题和行业生成具体的场景细节描述
+function generateSceneDetail(chapterTitle, industry) {
+  if (!chapterTitle) return '';
+  var title = chapterTitle.toLowerCase();
+  var details = [];
+
+  // 维修/家电类 - 更精细的场景
+  if (industry === 'repair' || industry === 'automotive') {
+    if (/(准备|工具|材料|设备|安全须知)/.test(title)) details.push('tools arranged on workbench, safety equipment visible');
+    else if (/(故障|问题|现象|原因|分析|诊断|检测)/.test(title)) details.push('multimeter testing circuit, close-up of damaged component');
+    else if (/(拆解|拆卸|步骤)/.test(title)) details.push('appliance disassembled with parts organized, screwdriver in hand');
+    else if (/(维修|修复|修理|换件|更换)/.test(title)) details.push('technician hands repairing component, focused repair work');
+    else if (/(安装|组装|装配|复原)/.test(title)) details.push('reassembling appliance parts carefully, step-by-step process');
+    else if (/(清洁|保养|维护|清洗)/.test(title)) details.push('cleaning and maintaining equipment, preventive maintenance');
+    else if (/(电磁炉|电路|主板|电路板)/.test(title)) details.push('circuit board close-up, electronic components visible, multimeter testing');
+    else if (/(电机|发动机|核心部件)/.test(title)) details.push('motor or engine component close-up, mechanical parts detail');
+    else if (/(洗衣机|冰箱|空调|电视|家电)/.test(title)) details.push('home appliance being serviced in home setting');
+    else details.push('professional technician at work, authentic repair scene');
+  }
+
+  // 医疗类
+  else if (industry === 'medical' || industry === 'treatment') {
+    if (/(症状|病因|表现|临床)/.test(title)) details.push('doctor examining patient, medical consultation scene');
+    else if (/(诊断|检查|鉴别)/.test(title)) details.push('medical diagnosis, doctor reviewing test results');
+    else if (/(治疗|手术|疗法|方案)/.test(title)) details.push('medical treatment procedure, professional healthcare');
+    else if (/(护理|康复|术后)/.test(title)) details.push('patient care and recovery, hospital room setting');
+    else if (/(药物|用药|药品|剂量)/.test(title)) details.push('medication and prescription, pharmacy setting');
+    else details.push('modern hospital environment, professional medical staff');
+  }
+
+  // 美食/菜谱类
+  else if (industry === 'recipe' || industry === 'restaurant') {
+    if (/(食材|配料|准备|原料|材料)/.test(title)) details.push('fresh raw ingredients arranged on kitchen counter');
+    else if (/(做法|步骤|烹饪|制作|下锅|炒|煮)/.test(title)) details.push('cooking process on stove, steam rising from pan');
+    else if (/(成品|摆盘|出锅|装盘)/.test(title)) details.push('beautifully plated finished dish, appetizing food presentation');
+    else details.push('delicious food photography, professional kitchen setting');
+  }
+
+  // 旅游类
+  else if (industry === 'travel') {
+    if (/(景点|风景|推荐|打卡|美景)/.test(title)) details.push('stunning scenic view, famous tourist landmark');
+    else if (/(攻略|路线|行程|交通|住宿)/.test(title)) details.push('travel planning with map and itinerary, vacation preparation');
+    else if (/(美食|小吃|当地|特色)/.test(title)) details.push('local food market, authentic regional cuisine');
+    else details.push('beautiful travel destination, inspiring landscape photography');
+  }
+
+  // 教育类
+  else if (industry === 'edu') {
+    if (/(课程|教学|课堂|方法)/.test(title)) details.push('teacher explaining lesson in classroom, students engaged');
+    else if (/(考试|备考|复习|测试)/.test(title)) details.push('studying for exam, books and notes on desk');
+    else details.push('education environment, learning atmosphere');
+  }
+
+  // 金融类
+  else if (industry === 'finance') {
+    if (/(投资|股票|基金|证券)/.test(title)) details.push('stock market charts on screen, investment analysis');
+    else if (/(银行|贷款|信贷)/.test(title)) details.push('banking service, financial institution interior');
+    else if (/(财务|会计|预算|审计)/.test(title)) details.push('financial documents and calculator on desk');
+    else details.push('business finance setting, professional office');
+  }
+
+  // 新能源类
+  else if (industry === 'newenergy') {
+    if (/(光伏|太阳能|电池板)/.test(title)) details.push('solar panels array under bright sunlight, clean energy');
+    else if (/(风电|风力|风机)/.test(title)) details.push('wind turbines on green hills, renewable energy landscape');
+    else if (/(电动汽车|充电桩|电池)/.test(title)) details.push('electric vehicle charging station, clean transportation');
+    else details.push('renewable energy technology, green power generation');
+  }
+
+  // 电商/营销类
+  else if (industry === 'ecommerce' || industry === 'marketing') {
+    if (/(直播|带货|视频|推广)/.test(title)) details.push('live streaming e-commerce, phone camera setup, product selling');
+    else if (/(快递|物流|配送|发货)/.test(title)) details.push('delivery packages stacked for shipping, logistics warehouse');
+    else if (/(商品|产品|店铺|运营)/.test(title)) details.push('online store products display, digital retail');
+    else details.push('digital marketing workspace, computer with analytics');
+  }
+
+  // 法律类
+  else if (industry === 'law') {
+    if (/(合同|协议|条款|签约)/.test(title)) details.push('signing legal contract document, law office desk');
+    else if (/(诉讼|起诉|法院|纠纷)/.test(title)) details.push('courtroom setting, judge gavel, legal proceedings');
+    else details.push('law books and legal documents, attorney office');
+  }
+
+  // 通用企业/AI/数字化类
+  else {
+    if (/(介绍|背景|概述|简介)/.test(title)) details.push('business overview presentation, professional office setting');
+    else if (/(方案|架构|设计|系统|技术)/.test(title)) details.push('technology architecture diagram on screen, modern tech workspace');
+    else if (/(流程|步骤|方法|实施|计划)/.test(title)) details.push('workflow process planning, business strategy meeting');
+    else if (/(案例|效果|成果|展示|应用)/.test(title)) details.push('successful project results, business achievement presentation');
+    else if (/(数据|分析|统计|图表|市场)/.test(title)) details.push('data analytics dashboard on monitor, charts and graphs');
+    else if (/(总结|展望|结论|未来|趋势)/.test(title)) details.push('future business outlook, visionary perspective');
+    else details.push('professional business setting, corporate environment');
+  }
+
+  return details.join(', ');
+}
+
+// LoremFlickr搜索关键词映射（每组关键词用于生成不同角度的真实照片，大幅提高行业匹配度）
+// 每个行业提供多组关键词，每组对应不同场景，确保每页都能得到行业相关的真实彩图
+const LOREMFLICKR_KEYWORDS = {
+  ai: [
+    'artificial,intelligence,technology,robot',
+    'neural,network,data,center,server',
+    'computer,chip,processor,circuit,technology',
+    'digital,brain,machine,learning,ai',
+    'futuristic,technology,innovation,lab',
+    'data,visualization,screen,analytics,tech'
+  ],
+  digital: [
+    'digital,transformation,business,meeting',
+    'modern,office,technology,computer,work',
+    'data,dashboard,screen,analytics,business',
+    'cloud,computing,server,network,tech',
+    'business,team,collaboration,office,tech',
+    'software,application,laptop,workplace'
+  ],
+  medical: [
+    'hospital,doctor,medical,healthcare,clinic',
+    'medical,equipment,stethoscope,health',
+    'medicine,pills,drugs,pharmacy,treatment',
+    'surgery,operation,theater,surgeon,medical',
+    'patient,care,nurse,hospital,health',
+    'medical,lab,laboratory,test,science'
+  ],
+  treatment: [
+    'doctor,patient,hospital,treatment',
+    'medical,examination,diagnosis,healthcare',
+    'surgery,operation,medical,procedure',
+    'medicine,pills,prescription,pharmacy',
+    'medical,equipment,monitor,hospital',
+    'therapy,rehabilitation,health,clinic'
+  ],
+  edu: [
+    'education,school,classroom,learning,teacher',
+    'students,studying,books,library,university',
+    'graduation,diploma,academic,cap',
+    'teacher,writing,blackboard,class',
+    'online,learning,laptop,computer,education',
+    'school,supplies,notebook,pen,study'
+  ],
+  finance: [
+    'finance,business,money,banking,investment',
+    'stock,market,trading,chart,graph',
+    'bank,money,currency,financial,economy',
+    'business,meeting,finance,office,corporate',
+    'calculator,money,budget,accounting',
+    'gold,coins,wealth,investment,savings'
+  ],
+  security: [
+    'security,technology,cyber,lock,digital',
+    'hacker,computer,security,cyber,network',
+    'padlock,security,safe,protection',
+    'surveillance,camera,security,monitor',
+    'fingerprint,biometric,security,scan',
+    'firewall,network,security,data,protection'
+  ],
+  newenergy: [
+    'solar,panels,energy,renewable,green',
+    'wind,turbine,energy,power,farm',
+    'electric,vehicle,charging,station,battery',
+    'solar,power,plant,clean,energy',
+    'hydroelectric,dam,renewable,energy',
+    'green,energy,nature,sustainability,power'
+  ],
+  ecommerce: [
+    'shopping,online,store,ecommerce,retail',
+    'delivery,package,parcel,shipping,box',
+    'credit,card,payment,online,shopping',
+    'warehouse,storage,boxes,shelves,logistics',
+    'smartphone,shopping,app,mobile,store',
+    'shopping,cart,retail,store,products'
+  ],
+  marketing: [
+    'marketing,business,advertising,meeting,brand',
+    'social,media,marketing,digital,phone',
+    'advertising,billboard,brand,marketing',
+    'business,presentation,marketing,graph,chart',
+    'email,marketing,newsletter,digital',
+    'brand,product,photography,marketing'
+  ],
+  law: [
+    'law,lawyer,office,justice,legal,attorney',
+    'court,justice,law,legal,judge,gavel',
+    'law,books,legal,library,attorney',
+    'contract,signing,document,business,law',
+    'lawyer,meeting,client,office,legal',
+    'scales,justice,law,legal,court'
+  ],
+  recipe: [
+    'food,cooking,kitchen,restaurant',
+    'delicious,meal,dish,plate',
+    'fresh,vegetables,ingredients',
+    'cooking,pan,stove,chef',
+    'meat,beef,pork,cooking',
+    'chinese,food,asian,cuisine',
+    'gourmet,dining,meal,tasty',
+    'sauce,spices,seasoning,cooking'
+  ],
+  travel: [
+    'travel,landscape,vacation,tourism,nature',
+    'beach,ocean,sea,sunset,vacation',
+    'mountain,peak,landscape,nature,travel',
+    'airplane,airport,travel,flight,journey',
+    'hotel,resort,travel,luxury,vacation',
+    'map,compass,travel,backpack,adventure'
+  ],
+  automotive: [
+    'car,automobile,mechanic,repair,vehicle,garage',
+    'car,engine,mechanic,repair,automobile',
+    'car,workshop,garage,repair,tools',
+    'auto,repair,shop,mechanic,vehicle',
+    'car,parts,components,engine,automotive',
+    'electric,car,charging,battery,vehicle'
+  ],
+  repair: [
+    'repair,tools,mechanic,workshop',
+    'screwdriver,wrench,tools,repair',
+    'technician,fixing,repair,service',
+    'appliance,washing,machine,repair',
+    'circuit,board,electronics,repair',
+    'maintenance,worker,fixing,equipment',
+    'toolbox,tools,repair,work',
+    'electrician,wiring,electrical,repair'
+  ],
+  agriculture: [
+    'agriculture,farming,farm,field,tractor',
+    'rice,paddy,field,farming,countryside,asia',
+    'vegetable,garden,farm,greenhouse,plants',
+    'tractor,field,farm,agriculture,harvest',
+    'harvest,crops,farm,field,agriculture',
+    'farm,animals,cattle,countryside,rural'
+  ],
+  logistics: [
+    'logistics,warehouse,transport,shipping,cargo',
+    'truck,transport,delivery,cargo,logistics',
+    'warehouse,shelves,boxes,storage,distribution',
+    'container,ship,port,cargo,shipping',
+    'delivery,van,package,shipping,courier',
+    'forklift,warehouse,loading,cargo,logistics'
+  ],
+  construction: [
+    'construction,building,site,worker,architecture',
+    'crane,construction,site,building',
+    'blueprint,architecture,plan,construction',
+    'construction,worker,helmet,safety,site',
+    'concrete,mixer,construction,building',
+    'excavator,construction,machine,digging'
+  ],
+  realestate: [
+    'real,estate,house,property,building,home',
+    'modern,house,architecture,home,luxury',
+    'apartment,building,city,real,estate',
+    'house,keys,property,real,estate,home',
+    'interior,design,living,room,home,modern',
+    'house,model,property,real,estate,architecture'
+  ],
+  restaurant: [
+    'restaurant,food,dining,chef,kitchen,gourmet',
+    'restaurant,table,setting,dining,elegant',
+    'chef,cooking,kitchen,restaurant,food',
+    'gourmet,dish,restaurant,plating,food',
+    'wine,glass,restaurant,dining,elegant',
+    'restaurant,menu,dining,cafe,food'
+  ],
+  fitness: [
+    'fitness,gym,exercise,workout,sports',
+    'gym,equipment,exercise,fitness,workout',
+    'running,jogging,exercise,fitness,outdoor',
+    'yoga,exercise,fitness,health,wellness',
+    'dumbbells,weights,gym,fitness,training',
+    'athlete,sports,fitness,exercise,training'
+  ],
+  beauty: [
+    'beauty,spa,skincare,cosmetics,makeup',
+    'makeup,cosmetics,beauty,products,lipstick',
+    'spa,massage,wellness,relaxation,beauty',
+    'skincare,face,beauty,cream,skin',
+    'nail,manicure,beauty,salon,nails',
+    'hair,salon,beauty,hairdresser,styling'
+  ],
+  pet: [
+    'pet,dog,cat,animal,cute,veterinary',
+    'dog,puppy,cute,pet,animal',
+    'cat,kitten,cute,pet,animal',
+    'veterinarian,doctor,pet,animal,clinic',
+    'pet,food,bowl,dog,cat,feeding',
+    'pet,grooming,dog,cat,washing'
+  ],
+  motherbaby: [
+    'baby,mother,family,newborn,parenting',
+    'newborn,baby,hospital,birth,mother',
+    'mother,baby,cuddle,love,family',
+    'baby,footprint,hands,newborn,small',
+    'pregnant,woman,baby,pregnancy,mother',
+    'baby,toys,nursery,child,room'
+  ],
+  gov: [
+    'government,building,city,public,architecture',
+    'city,hall,government,building,capital',
+    'flag,nation,government,country,patriotic',
+    'public,service,government,official,meeting',
+    'court,building,government,justice,law',
+    'vote,election,democracy,ballot'
+  ],
+  enterprise: [
+    'business,corporate,office,work,company',
+    'business,meeting,corporate,team,office',
+    'skyscraper,city,business,corporate,building',
+    'handshake,business,deal,corporate,agreement',
+    'office,building,corporate,business,modern',
+    'conference,room,business,meeting,presentation'
+  ],
+  tutorial: [
+    'learning,education,study,book,training',
+    'tutorial,learning,computer,training,online',
+    'book,reading,study,education,library',
+    'teacher,explaining,student,learning,classroom',
+    'notebook,pen,writing,study,notes',
+    'online,course,computer,learning,tutorial'
+  ],
+  general: [
+    'business,professional,office,work',
+    'modern,office,business,corporate',
+    'meeting,business,team,office,collaboration',
+    'technology,business,modern,work',
+    'presentation,business,meeting,conference',
+    'success,business,growth,target,achievement'
+  ]
+};
+
+// 获取章节场景关键词（用于loremflickr更精准匹配）
+// 为每个章节生成独特的关键词组合，确保每页图片不同且语义匹配
+// 返回一个关键词数组，每个元素是一组关键词（用于生成多个LoremFlickr URL）
+function getSceneFlickrKeywords(chapterTitle, industry, pageIdx) {
+  var kwGroups = LOREMFLICKR_KEYWORDS[industry] || LOREMFLICKR_KEYWORDS['general'];
+  if (typeof kwGroups === 'string') kwGroups = [kwGroups]; // 兼容旧格式
+  var title = (chapterTitle || '').toLowerCase();
+  pageIdx = pageIdx || 0;
+
+  // 按章节标题精细匹配场景 - 额外场景关键词
+  var sceneKw = '';
+
+  // 维修/教程类 - 更精细的子场景
+  if (/(准备|工具|材料|设备|安全须知|工具准备)/.test(title)) sceneKw = 'tools,preparation,workbench,safety,equipment';
+  else if (/(故障|问题|现象|原因|分析|常见|诊断|检测)/.test(title)) sceneKw = 'problem,diagnosis,inspection,checking,damage,multimeter';
+  else if (/(拆解|拆卸|安装|组装|步骤|分解)/.test(title)) sceneKw = 'disassembly,parts,components,screwdriver,repairing';
+  else if (/(维修|修复|修理|换件|更换|处理)/.test(title)) sceneKw = 'repair,fixing,technician,hands,workshop';
+  else if (/(检测|测试|检查|测量|判断)/.test(title)) sceneKw = 'testing,measurement,inspection,diagnostic,multimeter';
+  else if (/(清洁|保养|维护|养护|清洗|日常)/.test(title)) sceneKw = 'cleaning,maintenance,caring,service,preventive';
+  else if (/(电机|发动机|核心部件|主板|电路|电路板)/.test(title)) sceneKw = 'motor,engine,machine,parts,mechanism,circuit';
+  else if (/(调试|组装|复原|装配|回装)/.test(title)) sceneKw = 'assembly,reassemble,adjustment,putting-together';
+  else if (/(洗衣机|冰箱|空调|电视|家电)/.test(title)) sceneKw = 'appliance,washing,machine,home,repair';
+
+  // 医疗类
+  else if (/(症状|病因|表现|临床)/.test(title)) sceneKw = 'symptoms,patient,doctor,examination,medical';
+  else if (/(诊断|检查|鉴别|辅助)/.test(title)) sceneKw = 'diagnosis,medical-exam,doctor,patient,hospital,test';
+  else if (/(治疗|手术|疗法|用药|方案)/.test(title)) sceneKw = 'treatment,surgery,operation,medical-care,doctor,medicine';
+  else if (/(护理|康复|术后|恢复|随访)/.test(title)) sceneKw = 'nursing,recovery,patient-care,hospital,healthcare';
+  else if (/(药物|用药|药品|剂量|处方)/.test(title)) sceneKw = 'medicine,pills,prescription,pharmacy,drugs';
+  else if (/(高血压|糖尿病|心脏病|疾病)/.test(title)) sceneKw = 'health,medical,checkup,blood,pressure,doctor';
+
+  // 餐饮/菜谱类
+  else if (/(食材|配料|准备|原料|材料)/.test(title)) sceneKw = 'ingredients,food-preparation,fresh,kitchen,cooking';
+  else if (/(做法|步骤|烹饪|制作|下锅|炒|煮)/.test(title)) sceneKw = 'cooking,chef,kitchen,stove,pan,wok';
+  else if (/(成品|摆盘|出锅|调味|装盘)/.test(title)) sceneKw = 'food-dish,plating,meal,restaurant,delicious';
+  else if (/(烘焙|烤箱|蛋糕|面包)/.test(title)) sceneKw = 'baking,oven,bread,pastry,cake,bakery';
+
+  // 旅游类
+  else if (/(景点|风景|推荐|打卡|美景)/.test(title)) sceneKw = 'landmark,scenic,landscape,travel,tourism,nature';
+  else if (/(攻略|路线|行程|交通|住宿|住宿)/.test(title)) sceneKw = 'travel-plan,map,vacation,journey,adventure';
+  else if (/(美食|小吃|当地|特色)/.test(title)) sceneKw = 'local,food,market,travel,cuisine,street';
+  else if (/(海岛|海滩|海边)/.test(title)) sceneKw = 'beach,ocean,island,vacation,tropical';
+  else if (/(山|登山|徒步)/.test(title)) sceneKw = 'mountain,hiking,peak,nature,adventure';
+
+  // 法律类
+  else if (/(合同|协议|条款|签约)/.test(title)) sceneKw = 'contract,document,signing,business,law';
+  else if (/(诉讼|起诉|法院|纠纷)/.test(title)) sceneKw = 'court,trial,law,justice,legal';
+  else if (/(法律|法规|法条|条例)/.test(title)) sceneKw = 'law,books,legal,statute,justice';
+
+  // AI/科技类
+  else if (/(技术|架构|算法|模型)/.test(title)) sceneKw = 'technology,algorithm,code,computer,data';
+  else if (/(应用|场景|案例|落地)/.test(title)) sceneKw = 'application,robot,ai,technology,solution';
+  else if (/(数据|分析|统计|图表)/.test(title)) sceneKw = 'data,analytics,charts,graph,dashboard';
+
+  // 金融类
+  else if (/(投资|股票|基金|证券)/.test(title)) sceneKw = 'investment,stock,trading,finance,market';
+  else if (/(银行|贷款|信贷|风控)/.test(title)) sceneKw = 'banking,loan,credit,finance,money';
+  else if (/(财务|会计|预算|审计)/.test(title)) sceneKw = 'accounting,finance,calculator,budget,business';
+
+  // 教育类
+  else if (/(课程|教学|课堂|方法)/.test(title)) sceneKw = 'teaching,classroom,lesson,teacher,students';
+  else if (/(考试|备考|复习|测试)/.test(title)) sceneKw = 'exam,test,study,students,education';
+  else if (/(学生|儿童|幼儿园|小学)/.test(title)) sceneKw = 'children,students,kids,school,learning';
+
+  // 新能源类
+  else if (/(光伏|太阳能|电池板)/.test(title)) sceneKw = 'solar,panels,energy,renewable,power';
+  else if (/(风电|风力|风机)/.test(title)) sceneKw = 'wind,turbine,energy,power,farm';
+  else if (/(电动汽车|充电桩|电池)/.test(title)) sceneKw = 'electric,car,charging,battery,vehicle';
+
+  // 电商类
+  else if (/(快递|物流|配送|发货)/.test(title)) sceneKw = 'delivery,package,shipping,parcel,box';
+  else if (/(直播|带货|营销|推广)/.test(title)) sceneKw = 'livestreaming,marketing,phone,selling,social';
+  else if (/(商品|产品|店铺|运营)/.test(title)) sceneKw = 'products,store,shelf,shopping,retail';
+
+  // 通用场景
+  else if (/(介绍|背景|概述|简介|行业)/.test(title)) sceneKw = 'introduction,business,concept,overview,professional';
+  else if (/(方案|架构|设计|系统|技术)/.test(title)) sceneKw = 'design,technology,system,diagram,modern';
+  else if (/(流程|步骤|方法|实施|计划)/.test(title)) sceneKw = 'process,workflow,planning,strategy,steps';
+  else if (/(案例|效果|成果|展示|应用)/.test(title)) sceneKw = 'results,success,project,meeting,business';
+  else if (/(数据|分析|统计|图表|市场)/.test(title)) sceneKw = 'data,charts,analytics,statistics,graph';
+  else if (/(团队|人员|组织|管理|培训)/.test(title)) sceneKw = 'team,people,business-meeting,office,collaboration';
+  else if (/(风险|安全|注意|防护|应急)/.test(title)) sceneKw = 'safety,protection,warning,security,prevention';
+  else if (/(总结|展望|结论|未来|趋势)/.test(title)) sceneKw = 'future,growth,success,business,conclusion';
+
+  // 从行业关键词组中选择关键词（每页不同）
+  var result = [];
+  // 第一选择：根据pageIdx选择不同的关键词组
+  var firstIdx = pageIdx % kwGroups.length;
+  result.push(kwGroups[firstIdx]);
+  // 第二选择：相邻的关键词组
+  var secondIdx = (pageIdx + 3) % kwGroups.length;
+  if (secondIdx !== firstIdx) result.push(kwGroups[secondIdx]);
+  // 第三选择：再隔一个
+  var thirdIdx = (pageIdx + 5) % kwGroups.length;
+  if (thirdIdx !== firstIdx && thirdIdx !== secondIdx) result.push(kwGroups[thirdIdx]);
+
+  // 如果有场景关键词，与行业基础词组合生成更精准的关键词
+  if (sceneKw) {
+    // 行业词+场景词组合，最精准匹配
+    result.push(kwGroups[firstIdx] + ',' + sceneKw.split(',').slice(0,2).join(','));
+  }
+
+  return result;
+}
+
+// 获取图片URL列表（优化策略：Picsum极速兜底 + Pollinations AI行业图 + LoremFlickr行业图）
+// 架构：
+//   - 快速通道（立即显示）：Picsum Photos（稳定CDN，100%可用）
+//   - AI生成通道（优先升级）：Pollinations AI根据行业+章节语义生成专业图片（排在前面，优先升级）
+//   - 行业匹配通道（备选）：LoremFlickr关键词真实照片（因ORB问题经常失败，放后面）
+function getImageUrls(industry, chapterTitle, topic, idx, pageType, seedOffset) {
   seedOffset = seedOffset || 0;
-  var seed = Math.abs(hashCode(industry + '_' + (pageType||'content') + '_' + idx + '_' + seedOffset));
-  var w = pageType === 'cover' ? 1024 : 800;
-  var h = pageType === 'cover' ? 576 : 450;
-  return 'https://image.pollinations.ai/prompt/' + generateImagePrompt(industry, chapterTitle, topic, pageType) +
-    '?width=' + w + '&height=' + h + '&seed=' + seed + '&nologo=true&nofeed=true';
+  var seed = Math.abs(hashCode(industry + '_' + (pageType||'content') + '_' + idx + '_' + seedOffset + '_' + (chapterTitle||'').substring(0,8)));
+  var w = pageType === 'cover' ? 800 : 640;
+  var h = pageType === 'cover' ? 450 : 360;
+
+  var result = [];
+
+  // === 快速通道（放在最前面，确保立即有图显示）===
+  result.push('https://picsum.photos/seed/' + seed + '/' + w + '/' + h);
+
+  // === AI生成通道（第二优先级，快速升级到行业匹配图片）===
+  var pollPrompt = generateImagePrompt(industry, chapterTitle, topic, pageType);
+  result.push('https://image.pollinations.ai/prompt/' + pollPrompt +
+    '?width=' + w + '&height=' + h + '&seed=' + seed + '&nologo=true');
+
+  // === 行业匹配通道（LoremFlickr，因ORB问题放后面作为备选）===
+  var sceneKeywordGroups = getSceneFlickrKeywords(chapterTitle, industry, idx);
+  var cacheBust = seed % 100000;
+
+  // 只尝试2组关键词（减少无效等待）
+  for (var gi = 0; gi < sceneKeywordGroups.length && gi < 2; gi++) {
+    var kw = sceneKeywordGroups[gi];
+    var simpleKw = kw.split(',').slice(0, 3).join(',');
+    var lock = (cacheBust + gi * 101 + idx * 211 + seedOffset * 313) % 99999 + 1;
+    result.push('https://loremflickr.com/' + w + '/' + h + '/' + encodeURIComponent(simpleKw) + '?lock=' + lock);
+  }
+
+  // 行业通用关键词
+  var industryEn = INDUSTRY_KEYWORDS_EN[industry] || INDUSTRY_KEYWORDS_EN['general'];
+  if (industryEn) {
+    var simpleIndustryKw = industryEn.split(' ').slice(0, 2).join(',');
+    result.push('https://loremflickr.com/' + w + '/' + h + '/' + encodeURIComponent(simpleIndustryKw) + '?lock=' + ((cacheBust * 19 + 5) % 99999 + 1));
+  }
+
+  // Picsum变体（保底，确保每页图片不同）
+  result.push('https://picsum.photos/seed/' + (seed * 7 + 13) + '/' + w + '/' + h);
+  result.push('https://picsum.photos/seed/' + (seed * 31 + 17) + '/' + w + '/' + h);
+
+  return result;
+}
+
+// 获取主显示URL（第一个是Picsum快速图，用于即时显示）
+function getImageUrl(industry, chapterTitle, topic, idx, pageType, seedOffset) {
+  return getImageUrls(industry, chapterTitle, topic, idx, pageType, seedOffset)[0];
+}
+
+// 为单页生成多个备选图片URL（兼容旧函数，现在直接调用getImageUrls）
+function generateImageUrlBatch(industry, chapterTitle, topic, idx) {
+  return getImageUrls(industry, chapterTitle, topic, idx, 'content', 0);
+}
+
+// 判断是否运行在本地桌面模式（有代理服务器）
+function isDesktopMode() {
+  return location.protocol === 'http:' && location.hostname === '127.0.0.1';
+}
+
+// 将远程URL转为代理URL（桌面模式使用本地代理避免CORS）
+function proxyUrl(url) {
+  if (isDesktopMode()) {
+    return '/proxy?url=' + encodeURIComponent(url);
+  }
+  return url;
 }
 
 // 简单字符串哈希，用于生成稳定的seed
@@ -1719,130 +2731,424 @@ function hashCode(str) {
   return Math.abs(hash);
 }
 
-// 使用fetch下载图片并转为base64（避免canvas CORS问题）
-function fetchImageAsBase64(url, timeoutMs) {
-  timeoutMs = timeoutMs || 12000;
+// 使用XHR下载图片并转为base64（最可靠的方式，兼容代理模式）
+function xhrImageToBase64(url, timeoutMs) {
+  timeoutMs = timeoutMs || 25000;
+  return new Promise(function(resolve) {
+    try {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', url, true);
+      xhr.responseType = 'blob';
+      xhr.timeout = timeoutMs;
+
+      var timer = setTimeout(function() {
+        try { xhr.abort(); } catch(e) {}
+        resolve(null);
+      }, timeoutMs);
+
+      xhr.onload = function() {
+        clearTimeout(timer);
+        if (xhr.status === 200 && xhr.response) {
+          var blob = xhr.response;
+          if (blob.size > 500) {
+            var reader = new FileReader();
+            reader.onloadend = function() { resolve(reader.result); };
+            reader.onerror = function() { resolve(null); };
+            reader.readAsDataURL(blob);
+            return;
+          }
+        }
+        resolve(null);
+      };
+      xhr.onerror = function() {
+        clearTimeout(timer);
+        resolve(null);
+      };
+      xhr.ontimeout = function() {
+        clearTimeout(timer);
+        resolve(null);
+      };
+      xhr.send();
+    } catch(e) {
+      resolve(null);
+    }
+  });
+}
+
+// 使用XMLHttpRequest下载图片（XHR可能比fetch更兼容某些CORS情况）
+function xhrImageToBase64(url, timeoutMs) {
+  timeoutMs = timeoutMs || 15000;
+  return new Promise(function(resolve) {
+    var xhr = new XMLHttpRequest();
+    var timer = setTimeout(function() {
+      try { xhr.abort(); } catch(e) {}
+      resolve(null);
+    }, timeoutMs);
+    xhr.open('GET', url, true);
+    xhr.responseType = 'blob';
+    xhr.timeout = timeoutMs;
+    xhr.onload = function() {
+      clearTimeout(timer);
+      if (xhr.status >= 200 && xhr.status < 300) {
+        var blob = xhr.response;
+        if (blob && blob.size > 500) {
+          var reader = new FileReader();
+          reader.onloadend = function() {
+            var result = reader.result;
+            if (result && result.indexOf('data:image') === 0) {
+              resolve(result);
+            } else {
+              resolve(null);
+            }
+          };
+          reader.onerror = function() { resolve(null); };
+          reader.readAsDataURL(blob);
+        } else {
+          resolve(null);
+        }
+      } else {
+        resolve(null);
+      }
+    };
+    xhr.onerror = function() {
+      clearTimeout(timer);
+      resolve(null);
+    };
+    xhr.ontimeout = function() {
+      clearTimeout(timer);
+      resolve(null);
+    };
+    try {
+      xhr.send();
+    } catch(e) {
+      clearTimeout(timer);
+      resolve(null);
+    }
+  });
+}
+
+// 使用fetch API下载图片为blob再转base64（CORS兼容方式）
+function fetchImageToBase64(url, timeoutMs) {
+  timeoutMs = timeoutMs || 15000;
   return new Promise(function(resolve) {
     var controller = new AbortController();
-    var timeoutId = setTimeout(function() {
+    var timer = setTimeout(function() {
       try { controller.abort(); } catch(e) {}
       resolve(null);
     }, timeoutMs);
 
-    fetch(url, { mode: 'cors', signal: controller.signal, cache: 'no-cache' })
-      .then(function(response) {
-        if (!response.ok) throw new Error('HTTP error');
-        return response.blob();
-      })
-      .then(function(blob) {
-        clearTimeout(timeoutId);
-        if (!blob || blob.size < 500) { resolve(null); return; }
-        var reader = new FileReader();
-        reader.onloadend = function() { resolve(reader.result); };
-        reader.onerror = function() { resolve(null); };
-        reader.readAsDataURL(blob);
-      })
-      .catch(function() {
-        clearTimeout(timeoutId);
+    fetch(url, {
+      mode: 'cors',
+      signal: controller.signal
+    }).then(function(response) {
+      if (!response.ok) {
+        clearTimeout(timer);
         resolve(null);
-      });
+        return null;
+      }
+      return response.blob();
+    }).then(function(blob) {
+      if (!blob) return; // blob为null说明前面已经resolve了
+      clearTimeout(timer);
+      if (blob.size < 500) {
+        resolve(null);
+        return;
+      }
+      var reader = new FileReader();
+      reader.onloadend = function() {
+        var result = reader.result;
+        if (result && result.indexOf('data:image') === 0) {
+          resolve(result);
+        } else {
+          resolve(null);
+        }
+      };
+      reader.onerror = function() { resolve(null); };
+      reader.readAsDataURL(blob);
+    }).catch(function() {
+      clearTimeout(timer);
+      resolve(null);
+    });
   });
 }
 
-// 为单页生成多个备选图片URL（3个不同seed）
-function generateImageUrlBatch(industry, chapterTitle, topic, idx) {
-  var urls = [];
-  for (var s = 0; s < 3; s++) {
-    var seed = Math.abs(hashCode(industry + '_' + idx + '_' + s + '_' + (chapterTitle||'').substring(0,8)));
-    var prompt = generateImagePrompt(industry, chapterTitle, topic, 'content');
-    urls.push('https://image.pollinations.ai/prompt/' + prompt + '?width=800&height=450&seed=' + seed + '&nologo=true&nofeed=true');
-  }
-  // 最后加一个简单通用图保底
-  var fbSeed = Math.abs(hashCode('fb_' + industry + '_' + idx));
-  var simplePrompts = [
-    'professional business photography, modern office',
-    'professional meeting room, business presentation',
-    'clean professional workspace, laptop and documents'
-  ];
-  var fbPrompt = encodeURIComponent(simplePrompts[idx % simplePrompts.length]);
-  urls.push('https://image.pollinations.ai/prompt/' + fbPrompt + '?width=800&height=450&seed=' + fbSeed + '&nologo=true&nofeed=true');
-  return urls;
+// Canvas方式加载图片并转base64（备用方案，设置crossOrigin）
+function canvasImageToBase64(url, timeoutMs) {
+  timeoutMs = timeoutMs || 15000;
+  return new Promise(function(resolve) {
+    var img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.referrerPolicy = 'no-referrer';
+    var timer = setTimeout(function() {
+      img.src = '';
+      resolve(null);
+    }, timeoutMs);
+    img.onload = function() {
+      clearTimeout(timer);
+      try {
+        var canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || 640;
+        canvas.height = img.naturalHeight || 360;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+        if (dataUrl && dataUrl.length > 1000) {
+          resolve(dataUrl);
+        } else {
+          resolve(null);
+        }
+      } catch(e) {
+        resolve(null);
+      }
+    };
+    img.onerror = function() {
+      clearTimeout(timer);
+      resolve(null);
+    };
+    img.src = url;
+  });
 }
 
-// 并行加载多张备选图，返回最先成功的
-async function loadImageWithFallbacks(urls, timeoutMs) {
-  timeoutMs = timeoutMs || 10000;
-  // 并行发起所有请求
-  var promises = urls.map(function(url) { return fetchImageAsBase64(url, timeoutMs); });
-  var results = await Promise.allSettled(promises);
-  for (var i = 0; i < results.length; i++) {
-    if (results[i].status === 'fulfilled' && results[i].value && results[i].value.startsWith('data:')) {
-      return results[i].value;
-    }
+// 下载单张图片（多策略保证成功率）
+// 策略优先级：本地代理XHR -> fetch+CORS -> canvas+crossOrigin
+// 注意：Picsum和Pollinations支持CORS，LoremFlickr不支持CORS
+// 所以导出时会优先使用Picsum/Pollinations URL获取图片
+async function downloadSingleImage(url, timeoutMs) {
+  timeoutMs = timeoutMs || 20000;
+  var proxiedUrl = proxyUrl(url);
+
+  // 方案1：通过本地代理XHR下载（桌面模式，127.0.0.1有代理服务器时100%成功）
+  if (proxiedUrl !== url) {
+    var result = await xhrImageToBase64(proxiedUrl, timeoutMs);
+    if (result && result.indexOf('data:image') === 0) return result;
   }
+
+  // 方案2：fetch API + CORS（现代浏览器最可靠方式）
+  result = await fetchImageToBase64(url, timeoutMs - 3000);
+  if (result && result.indexOf('data:image') === 0) return result;
+
+  // 方案3：Image + Canvas + crossOrigin（备用）
+  result = await canvasImageToBase64(url, timeoutMs - 5000);
+  if (result && result.indexOf('data:image') === 0) return result;
+
   return null;
 }
 
-// 为大纲中的每个内容页生成配图URL（预览用）
-async function generateImagesForOutline(outline, industry) {
+// 根据章节标题返回英文搜索关键词
+function getSceneSearchKeyword(chapterTitle, industry) {
+  if (!chapterTitle) return '';
+  var t = chapterTitle.toLowerCase();
+  // 医疗
+  if (/(治疗|诊疗|手术|护理|康复)/.test(t)) return 'doctor patient treatment';
+  if (/(诊断|检查|检验|影像|化验)/.test(t)) return 'medical diagnosis hospital';
+  if (/(症状|病因|病理|疾病)/.test(t)) return 'medical healthcare';
+  // 维修
+  if (/(故障|拆解|维修|拆装|修理|换件)/.test(t)) return 'repair technician tools';
+  if (/(保养|维护|清洗|安装)/.test(t)) return 'maintenance service';
+  // 餐饮
+  if (/(食材|配料|准备|处理)/.test(t)) return 'ingredients food cooking';
+  if (/(做法|步骤|烹饪|制作|下锅)/.test(t)) return 'chef cooking kitchen';
+  if (/(成品|摆盘|调味)/.test(t)) return 'food dish restaurant';
+  // 旅游
+  if (/(景点|风景|打卡|推荐)/.test(t)) return 'travel landscape scenery';
+  if (/(攻略|行程|路线|游玩)/.test(t)) return 'travel vacation tourism';
+  // 教育
+  if (/(教学|课堂|课程|学习)/.test(t)) return 'education classroom learning';
+  // 金融
+  if (/(投资|理财|交易)/.test(t)) return 'finance investment trading';
+  // 汽车
+  if (/(发动机|变速箱|底盘)/.test(t)) return 'car engine mechanic';
+  // 农业
+  if (/(种植|作物|收割)/.test(t)) return 'farming agriculture field';
+  // 物流
+  if (/(仓储|仓库|库存)/.test(t)) return 'warehouse logistics';
+  if (/(配送|快递|运输)/.test(t)) return 'delivery shipping logistics';
+  // 建筑
+  if (/(施工|工程|工地)/.test(t)) return 'construction building site';
+  // 健身
+  if (/(训练|锻炼|运动)/.test(t)) return 'fitness gym exercise workout';
+  // 美妆
+  if (/(护肤|皮肤|面膜)/.test(t)) return 'skincare beauty spa';
+  if (/(化妆|彩妆|口红)/.test(t)) return 'makeup beauty cosmetics';
+  // 宠物
+  if (/(宠物|猫狗|喂养)/.test(t)) return 'pet animal dog';
+  // 母婴
+  if (/(婴儿|新生儿|育儿)/.test(t)) return 'baby newborn family';
+  // 电商
+  if (/(店铺|商品|订单)/.test(t)) return 'ecommerce online shopping';
+  // 房产
+  if (/(楼盘|户型|房产)/.test(t)) return 'house real estate property';
+  // 通用
+  if (/(趋势|背景|发展|现状)/.test(t)) return 'business trend office';
+  if (/(方案|应用|案例|实践)/.test(t)) return 'business meeting team';
+  if (/(技术|架构|系统|平台)/.test(t)) return 'technology data center';
+  if (/(规划|计划|实施|步骤)/.test(t)) return 'planning strategy meeting';
+  if (/(数据|分析|统计)/.test(t)) return 'data analytics charts';
+  return 'business professional';
+}
+
+// 并行加载所有备选URL，返回最先成功的（速度最快）
+function loadImageWithFallbacks(urls, perTimeoutMs) {
+  perTimeoutMs = perTimeoutMs || 15000;
+  return new Promise(function(resolve) {
+    var resolved = false;
+    var completed = 0;
+    var total = urls.length;
+
+    function done(result) {
+      if (resolved) return;
+      if (result) {
+        resolved = true;
+        resolve(result);
+      } else {
+        completed++;
+        if (completed >= total) {
+          resolve(null);
+        }
+      }
+    }
+
+    // 所有URL同时发起请求，谁先成功用谁
+    urls.forEach(function(url) {
+      downloadSingleImage(url, perTimeoutMs).then(done);
+    });
+  });
+}
+
+// 为大纲中的每个内容页生成配图URL列表（预览用，不阻塞，立即显示）
+function generateImagesForOutline(outline, industry) {
   var useImages = document.getElementById('useImages').checked;
   if (!useImages) return;
   for (var i = 0; i < outline.pages.length; i++) {
     var p = outline.pages[i];
     if (p.type === 'content') {
-      var seed = Math.abs(hashCode(industry + '_' + i + '_0'));
-      p.imageUrl = 'https://image.pollinations.ai/prompt/' + generateImagePrompt(industry, p.title, outline.title, 'content') + '?width=800&height=450&seed=' + seed + '&nologo=true&nofeed=true';
+      p.imageUrls = getImageUrls(industry, p.title, outline.title, i, 'content', 0);
+      p.imageUrl = p.imageUrls[0];
       p.imageData = null;
     }
   }
+  // 不等待任何下载，立即返回让UI渲染，浏览器自动并行加载图片
 }
 
-// 批量并行加载所有图片（并发4张）
+// 批量并行预加载图片（用于导出PPTX，并发10页，每页多源竞速）
+// 关键改进：导出时使用CORS兼容源（Picsum/Pollinations优先），确保能成功转为base64
 async function prepareImagesForExport(outline, industry) {
   var useImages = document.getElementById('useImages').checked;
   if (!useImages) return;
-
-  showToast('正在加载图片资源...','info');
 
   var contentPages = [];
   for (var i = 0; i < outline.pages.length; i++) {
     var p = outline.pages[i];
     if (p.type === 'content') {
       contentPages.push({page: p, idx: i});
-      p.imageData = null;
     }
   }
+
+  if (contentPages.length === 0) return;
+
+  showToast('正在准备导出图片（共' + contentPages.length + '张）...','info');
 
   var successCount = 0;
   var failCount = 0;
-  var concurrency = 4; // 同时加载4张
+  // 串行下载（每次1页），避免并发导致Pollinations AI生成超时
+  // 每张AI图片最多等待40秒，Picsum 8秒快速回退
 
-  for (var batchStart = 0; batchStart < contentPages.length; batchStart += concurrency) {
-    var batch = contentPages.slice(batchStart, batchStart + concurrency);
-    var promises = batch.map(function(item) {
-      var urls = generateImageUrlBatch(industry, item.page.title, outline.title, item.idx);
-      return loadImageWithFallbacks(urls, 10000).then(function(data) {
-        if (data) {
-          item.page.imageData = data;
-          successCount++;
-        } else {
-          item.page.imageData = null;
-          failCount++;
-        }
-      });
-    });
-    await Promise.all(promises);
-    var done = Math.min(batchStart + concurrency, contentPages.length);
+  for (var i = 0; i < contentPages.length; i++) {
+    var item = contentPages[i];
+
+    // 优先使用预览中已加载的图片数据（后台升级已加载成功的AI/行业图片）
+    if (item.page.imageData && item.page.imageData.indexOf('data:image') === 0 &&
+        item.page.imageData.length > 5000) {
+      successCount++;
+      var done = i + 1;
+      if (done < contentPages.length) {
+        showToast('图片准备: ' + done + '/' + contentPages.length + ' (复用预览图片)','info');
+      }
+      continue;
+    }
+
+    // 需要重新下载：构建CORS友好的URL列表（包含类型和超时信息）
+    var corsUrls = getCorsFriendlyUrls(item.page, industry, outline.title, item.idx);
+    // 智能顺序下载（自动根据URL类型选择下载方式和超时）
+    var data = await downloadImageSequential(corsUrls);
+    if (data) {
+      item.page.imageData = data;
+      successCount++;
+    } else {
+      failCount++;
+    }
+    var done = i + 1;
     if (done < contentPages.length) {
-      showToast('图片加载中: ' + done + '/' + contentPages.length,'info');
+      showToast('图片准备: ' + done + '/' + contentPages.length,'info');
     }
   }
 
-  if (failCount > 0) {
-    showToast('图片加载完成：成功' + successCount + '张，' + failCount + '页使用纯文字布局','success');
+  var totalContent = contentPages.length;
+  var totalOk = successCount;
+  if (failCount > 0 && failCount < totalContent) {
+    showToast('图片准备完成：' + totalOk + '/' + totalContent + '张已就绪','success');
+  } else if (failCount === 0) {
+    showToast('所有' + totalOk + '张图片全部就绪','success');
   } else {
-    showToast('图片加载完成，共' + successCount + '张','success');
+    showToast('图片加载部分失败，部分页面将使用纯文字布局','info');
   }
+}
+
+// 获取CORS友好的图片URL列表（用于导出）
+// 优先级：1.Pollinations AI生成行业相关图片 2.Picsum Photos稳定真实照片保底
+function getCorsFriendlyUrls(page, industry, topic, idx) {
+  var urls = [];
+  var seed = Math.abs(hashCode((industry||'general') + '_export_' + idx + '_' + (page.title||'').substring(0,8)));
+  var w = 800, h = 450;
+
+  // === 1. Pollinations AI 生成行业相关图片（高优先级）===
+  // 只放1个Pollinations URL，简洁参数（不加enhance，避免延长生成时间）
+  var pollPrompt = generateImagePrompt(industry, page.title, topic, 'content');
+  urls.push({
+    url: 'https://image.pollinations.ai/prompt/' + pollPrompt + '?width=' + w + '&height=' + h + '&seed=' + seed + '&nologo=true',
+    type: 'ai',  // 标记为AI生成图片，需要更长超时
+    timeout: 40000
+  });
+
+  // === 2. Picsum Photos 稳定真实照片保底 ===
+  var picId1 = seed % 1084;
+  var picId2 = (seed * 7 + 13) % 1084;
+  if (picId2 === picId1) picId2 = (picId2 + 50) % 1084;
+  urls.push({
+    url: 'https://picsum.photos/id/' + picId1 + '/' + w + '/' + h,
+    type: 'photo',
+    timeout: 8000
+  });
+  urls.push({
+    url: 'https://picsum.photos/id/' + picId2 + '/' + w + '/' + h,
+    type: 'photo',
+    timeout: 8000
+  });
+
+  return urls;
+}
+
+// 智能顺序下载：对AI图片用XHR+长超时，对普通照片用fetch+短超时
+async function downloadImageSequential(urls) {
+  for (var i = 0; i < urls.length; i++) {
+    var item = urls[i];
+    var url = item.url;
+    var timeout = item.timeout || 15000;
+    var data = null;
+
+    if (item.type === 'ai') {
+      // AI生成图片：优先用XHR下载（CORS兼容性最好），失败后用fetch
+      data = await xhrImageToBase64(url, timeout);
+      if (!data) data = await fetchImageToBase64(url, timeout);
+    } else {
+      // 普通照片：用fetch即可，快速
+      data = await fetchImageToBase64(url, timeout);
+      if (!data) data = await xhrImageToBase64(url, timeout);
+    }
+
+    if (data && data.indexOf('data:image') === 0) return data;
+  }
+  return null;
 }
 
 // 生成扩展章节（当需要页数超过内置章节时）
@@ -1890,35 +3196,63 @@ function genLocalOutline(topic, pc) {
   const pages = []; let pn = 1;
   const industry = detectIndustry(topic);
   const tpl = INDUSTRY_TEMPLATES[industry] || INDUSTRY_TEMPLATES['general'];
+  const useImg = document.getElementById('useImages').checked;
+  const ptsPerPage = useImg?5:7; // 每页显示要点数
+  
+  // 首先收集所有章节内容
+  let allChapters = [];
+  const templateChapters = tpl.chapters || [];
+  const numTemplateChapters = templateChapters.length;
+  
+  // 如果模板有足够章节，优先使用模板章节（循环使用）
   const numContentPages = Math.max(1, pc - 3);
-  const useParts = numContentPages > 15; // 超过15页内容时分PART
+  for (let i=0; i<Math.max(numContentPages, numTemplateChapters); i++) {
+    allChapters.push(getIndustryContent(industry, i));
+  }
+  
+  // 将章节按每页容量拆分成多页
+  let contentPages = [];
+  for (const ch of allChapters) {
+    const points = ch.points || [];
+    if (points.length === 0) {
+      contentPages.push({title:ch.title, points:['（内容待补充）']});
+      continue;
+    }
+    // 将要点分批
+    for (let i=0; i<points.length; i+=ptsPerPage) {
+      const batch = points.slice(i, i+ptsPerPage);
+      const pageTitle = (i===0) ? ch.title : ch.title + '（' + (Math.floor(i/ptsPerPage)+1) + '）';
+      contentPages.push({title:pageTitle, points:batch});
+    }
+  }
+  
+  const actualContentPages = contentPages.length;
+  const useParts = actualContentPages > 10; // 超过10页内容时分PART
 
   // 封面页
   pages.push({page_number:pn++, type:'cover', title:topic, content:[], subtitle:tpl.name+'专业解决方案'});
 
-  // 构建所有内容章节
-  let allChapters = [];
-  for (let i=0; i<numContentPages; i++) allChapters.push(getIndustryContent(industry, i));
-
-  // 目录页
-  pages.push({page_number:pn++, type:'toc', title:'目录', content:allChapters.map(c=>c.title)});
+  // 目录页 - 只显示章节标题（不含续页）
+  const chapterTitles = allChapters.map(c=>c.title);
+  pages.push({page_number:pn++, type:'toc', title:'目录', content:chapterTitles});
 
   // 如果页数很多，添加章节分隔
   if (useParts) {
-    const partSize = Math.ceil(numContentPages / Math.ceil(numContentPages / 10));
-    let chapterIdx = 0;
-    for (let part=0; chapterIdx<numContentPages; part++) {
+    const partSize = Math.ceil(actualContentPages / Math.ceil(actualContentPages / 8));
+    let pageIdx = 0;
+    for (let part=0; pageIdx<actualContentPages; part++) {
       // PART分隔页
-      pages.push({page_number:pn++, type:'section', title:'PART 0'+(part+1), content:[allChapters[chapterIdx].title+' 等相关内容']});
-      const end = Math.min(chapterIdx + partSize, numContentPages);
-      for (; chapterIdx<end; chapterIdx++) {
-        pages.push({page_number:pn++, type:'content', title:allChapters[chapterIdx].title, content:allChapters[chapterIdx].points});
+      const nextEnd = Math.min(pageIdx + partSize, actualContentPages);
+      const partChapterNames = contentPages.slice(pageIdx, nextEnd).map(cp=>cp.title).filter(t=>!t.includes('续'));
+      pages.push({page_number:pn++, type:'section', title:'PART 0'+(part+1), content:[partChapterNames[0]+' 等相关内容']});
+      for (; pageIdx<nextEnd; pageIdx++) {
+        pages.push({page_number:pn++, type:'content', title:contentPages[pageIdx].title, content:contentPages[pageIdx].points});
       }
     }
   } else {
     // 直接添加内容页
-    for (let i=0; i<numContentPages; i++) {
-      pages.push({page_number:pn++, type:'content', title:allChapters[i].title, content:allChapters[i].points});
+    for (let i=0; i<actualContentPages; i++) {
+      pages.push({page_number:pn++, type:'content', title:contentPages[i].title, content:contentPages[i].points});
     }
   }
 
@@ -1979,26 +3313,82 @@ async function startGenerate() {
   const pc = parseInt(document.getElementById('pageValue').textContent);
   const btn = document.getElementById('genBtn');
   btn.disabled = true;
+  btn.textContent = 'AI分析中...';
   const ind = detectIndustry(topic);
   let outline = null;
   if (config.apiKey) {
-    btn.textContent = 'AI分析生成中...';
     showToast('正在调用AI生成专业详细内容...','info');
     const res = await callAI([{role:'system',content:'你是专业PPT专家，只返回JSON'},{role:'user',content:buildPrompt(topic,desc,pc)}]);
-    if (res) { outline = extractJSON(res); if(outline&&outline.pages) showToast('AI生成成功','success'); }
+    if (res) { outline = extractJSON(res); if(outline&&outline.pages) showToast('AI内容生成成功','success'); }
   }
-  if (!outline || !outline.pages) { btn.textContent = '生成中...'; outline = genLocalOutline(topic, pc); if(!config.apiKey) showToast('使用内置行业详细模板生成','info'); }
-  outline.pages.forEach((p,i)=>{p.page_number=i+1;if(!p.content)p.content=[];if(typeof p.content==='string')p.content=[p.content];});
-  // 为内容页生成配图
-  generateImagesForOutline(outline, ind);
+  if (!outline || !outline.pages) {
+    btn.textContent = '生成内容中...';
+    outline = genLocalOutline(topic, pc);
+    if(!config.apiKey) showToast('使用内置行业详细模板生成','info');
+  }
+  outline.pages.forEach((p,i)=>{p.page_number=i+1;if(!p.content)p.content=[];if(typeof p.content==='string')p.content=[p.content];p.imageData=null;});
   currentOutline = outline;
+
+  // 生成图片URL并立即渲染预览（浏览器原生并行加载所有图片，速度最快）
+  generateImagesForOutline(outline, ind);
   renderPreview();
   document.getElementById('pageCount').textContent = currentOutline.pages.length+'页';
   document.getElementById('addBtn').disabled = false;
-  document.getElementById('exportBtn').disabled = false;
   document.getElementById('refreshImgBtn').disabled = false;
-  btn.disabled = false; btn.textContent = '开始生成PPT';
-  showToast('PPT生成成功！共'+currentOutline.pages.length+'页，AI智能匹配专业场景图片','success');
+  document.getElementById('exportBtn').disabled = false; // 立即启用导出按钮
+
+  btn.disabled = false;
+  btn.textContent = '开始生成PPT';
+  showToast('PPT生成成功！共'+currentOutline.pages.length+'页，图片正在加载中...','success');
+
+  // 后台异步将已加载的图片转为base64（用于导出），不阻塞UI
+  setTimeout(function() {
+    collectLoadedImagesAsBase64();
+  }, 3000); // 3秒后开始收集（浏览器此时已加载大部分图片）
+}
+
+// 后台收集浏览器已加载图片的base64数据（用于导出）
+// 不阻塞UI，遍历所有已加载的img元素尝试转base64
+function collectLoadedImagesAsBase64() {
+  if (!currentOutline) return;
+  var imgs = document.querySelectorAll('.img-container img');
+  var collected = 0;
+  imgs.forEach(function(img) {
+    try {
+      var container = img.closest('.img-container');
+      if (!container) return;
+      var card = container.closest('.page-card');
+      if (!card) return;
+      var idx = parseInt(card.getAttribute('data-idx'));
+      if (isNaN(idx) || !currentOutline.pages[idx]) return;
+      var p = currentOutline.pages[idx];
+      if (p.imageData) return; // 已有数据
+      if (!img.complete || img.naturalWidth === 0) return; // 未加载完成
+      
+      var canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || 640;
+      canvas.height = img.naturalHeight || 360;
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      if (dataUrl && dataUrl.length > 1000) {
+        p.imageData = dataUrl;
+        collected++;
+      }
+    } catch(e) {
+      // CORS错误忽略
+    }
+  });
+  // 如果还有未收集到的，延迟再试一次
+  var remaining = 0;
+  for (var i = 0; i < currentOutline.pages.length; i++) {
+    if (currentOutline.pages[i].type === 'content' && !currentOutline.pages[i].imageData) {
+      remaining++;
+    }
+  }
+  if (remaining > 0) {
+    setTimeout(collectLoadedImagesAsBase64, 3000);
+  }
 }
 
 function renderPreview() {
@@ -2021,22 +3411,32 @@ function renderCard(p, idx) {
     slide = '<div class="page-slide slide-ending"><div class="ending-title">THANKS</div></div>';
   } else {
     const useImg = document.getElementById('useImages').checked;
-    const pts = content.slice(0, useImg?5:6).map((pt,i)=>'<div class="ct-pt"><span class="ct-num">'+(i+1)+'.</span><span>'+esc(String(pt).substring(0, useImg?30:36))+'</span></div>').join('');
-    if (useImg && p.imageUrl) {
-      // 增强版左文右图布局 - 专业商务风格
+    const maxPts = useImg?5:7;
+    const maxLen = useImg?26:32;
+    const pts = content.slice(0, maxPts).map((pt,i)=>'<div class="ct-pt"><span class="ct-num">'+(i+1)+'.</span><span>'+esc(String(pt).substring(0, maxLen))+'</span></div>').join('');
+    if (useImg) {
+      // 所有内容页都直接显示图片区域，使用多源回退，浏览器并行加载不阻塞UI
+      var imgUrls = p.imageUrls || (p.imageUrl ? [p.imageUrl] : getImageUrls(detectIndustry(currentOutline?.title||''), p.title, currentOutline?.title||'', idx, 'content', 0));
+      p.imageUrls = imgUrls;
+      p.imageUrl = imgUrls[0];
+      var primaryUrl = imgUrls[0];
+      var fallbackUrls = imgUrls.slice(1);
+      var displaySrc = p.imageData || primaryUrl;
+      var isData = p.imageData && p.imageData.indexOf('data:') === 0;
+      
       slide = '<div class="page-slide" style="background:#fff;padding:0;display:flex;overflow:hidden;position:relative;">'+
         '<div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,#3b82f6,#1d4ed8);"></div>'+
-        '<div style="flex:1;display:flex;flex-direction:column;overflow:hidden;padding:7px 8px 7px 11px;">'+
-          '<div class="ct-title" style="font-size:7.5px;font-weight:bold;color:#1e3a8a;margin-bottom:4px;padding-bottom:3px;border-bottom:2px solid #dbeafe;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:0.3px;">'+esc(p.title||'')+'</div>'+
-          '<div style="flex:1;overflow:hidden;padding-top:2px;">'+pts+'</div>'+
+        '<div style="flex:1;display:flex;flex-direction:column;overflow:hidden;padding:6px 7px 6px 10px;">'+
+          '<div class="ct-title" style="font-size:7px;font-weight:bold;color:#1e3a8a;margin-bottom:3px;padding-bottom:2px;border-bottom:1.5px solid #dbeafe;line-height:1.3;-webkit-font-smoothing:antialiased;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all;">'+esc(p.title||'')+'</div>'+
+          '<div class="ct-points" style="flex:1;overflow:hidden;padding-top:1px;">'+pts+'</div>'+
         '</div>'+
-        '<div style="width:42%;padding:6px 6px 6px 2px;display:flex;align-items:stretch;">'+
-          '<div class="img-container" style="width:100%;border-radius:6px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.12);background:#f8fafc;position:relative;display:flex;align-items:center;justify-content:center;">'+
+        '<div style="width:40%;padding:5px 5px 5px 2px;display:flex;align-items:stretch;">'+
+          '<div class="img-container" style="width:100%;border-radius:5px;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,0.1);background:#f8fafc;position:relative;display:flex;align-items:center;justify-content:center;" data-idx="'+idx+'">'+
+            (isData ? '' : 
             '<div class="img-loading" style="position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f1f5f9;z-index:1;">'+
-              '<div style="width:20px;height:20px;border:2px solid #e2e8f0;border-top-color:#3b82f6;border-radius:50%;animation:imgspin 0.8s linear infinite;"></div>'+
-              '<div style="font-size:5px;color:#94a3b8;margin-top:4px;">AI生成图片中...</div>'+
-            '</div>'+
-            '<img src="'+p.imageUrl+'" style="width:100%;height:100%;object-fit:cover;position:relative;z-index:2;opacity:0;transition:opacity 0.5s ease;" onload="handleImgLoad(this);" onerror="handleImgError(this);">'+
+              '<div style="width:14px;height:14px;border:2px solid #e2e8f0;border-top-color:#3b82f6;border-radius:50%;animation:imgspin 0.8s linear infinite;"></div>'+
+            '</div>')+
+            '<img src="'+displaySrc+'" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover;position:relative;z-index:2;'+(isData?'':'opacity:0;transition:opacity 0.4s ease;')+'" '+(isData?'':'data-fallbacks=\''+JSON.stringify(fallbackUrls).replace(/'/g,'&#39;')+'\'')+' onload="handleImgLoad(this,'+idx+');" onerror="handleImgError(this,'+idx+');">'+
           '</div>'+
         '</div>'+
       '</div>';
@@ -2057,41 +3457,64 @@ function delPage(idx) { if(confirm('确定删除第'+(idx+1)+'页？')){currentO
 function addPage() { if(!currentOutline) return; currentOutline.pages.splice(currentOutline.pages.length-1,0,{page_number:0,type:'content',title:'新页面',content:['请编辑添加详细内容要点1','请编辑添加详细内容要点2','请编辑添加详细内容要点3']});currentOutline.pages.forEach((p,i)=>p.page_number=i+1);renderPreview();document.getElementById('pageCount').textContent=currentOutline.pages.length+'页';showToast('已添加空白页','success'); }
 
 // 重新生成所有配图
-function regenerateAllImages() {
+async function regenerateAllImages() {
   if (!currentOutline) return;
   const useImg = document.getElementById('useImages').checked;
   if (!useImg) { showToast('请先勾选"AI智能配图"选项','error'); return; }
 
   const topic = currentOutline.title || '';
   const industry = detectIndustry(topic);
+  const btn = document.getElementById('refreshImgBtn');
+  btn.disabled = true;
+  btn.textContent = '🔄 配图中...';
 
-  showToast('正在重新生成所有配图...','info');
+  // 清除旧数据，设置新URL列表，立即渲染（浏览器自动并行加载）
   let count = 0;
+  var offset = Date.now() % 10000;
   for (let i = 0; i < currentOutline.pages.length; i++) {
     const p = currentOutline.pages[i];
     if (p.type === 'content') {
-      // 使用时间戳确保生成新图片，清除旧的imageData
-      p.imageUrl = getImageUrl(industry, p.title, topic, i + Date.now() % 10000, 'content');
+      p.imageUrls = getImageUrls(industry, p.title, topic, i + offset, 'content', offset);
+      p.imageUrl = p.imageUrls[0];
       p.imageData = null;
       count++;
     }
   }
   renderPreview();
-  showToast('已重新生成 ' + count + ' 张配图','success');
+  showToast('正在为 ' + count + ' 页加载真实图片（浏览器自动并行加载）...','info');
+
+  // 后台预加载用于导出（不阻塞预览显示）
+  document.getElementById('exportBtn').disabled = false; // 预览已显示图片，可以导出
+  prepareImagesForExport(currentOutline, industry).then(() => {
+    renderPreview();
+  });
+  btn.disabled = false;
+  btn.textContent = '🔄 重新配图';
 }
 
 // 重新生成单页图片
-function refreshPageImage(idx) {
+async function refreshPageImage(idx) {
   if (!currentOutline || !currentOutline.pages[idx]) return;
   const p = currentOutline.pages[idx];
   if (p.type !== 'content') return;
 
   const topic = currentOutline.title || '';
   const industry = detectIndustry(topic);
-  p.imageUrl = getImageUrl(industry, p.title, topic, idx + Date.now() % 10000, 'content');
+  var offset = Date.now() % 10000;
+  p.imageUrls = getImageUrls(industry, p.title, topic, idx + offset, 'content', offset);
+  p.imageUrl = p.imageUrls[0];
   p.imageData = null;
   renderPreview();
-  showToast('已重新生成第' + p.page_number + '页配图','success');
+  showToast('正在为第' + p.page_number + '页加载图片...','info');
+
+  // 后台加载用于导出
+  loadImageWithFallbacks(p.imageUrls, 10000).then(function(data) {
+    if (data) {
+      p.imageData = data;
+      renderPreview();
+      showToast('第' + p.page_number + '页图片已就绪','success');
+    }
+  });
 }
 
 function getTplColors(id) {
@@ -2107,10 +3530,14 @@ async function exportPPT() {
   exportBtn.textContent = '导出中...';
 
   try {
-    // 先预加载所有图片并转换为base64，确保嵌入PPTX
-    const topic = currentOutline.title || '';
-    const industry = detectIndustry(topic);
-    await prepareImagesForExport(currentOutline, industry);
+    var topic = currentOutline.title || '';
+    var industry = detectIndustry(topic);
+    var useImages = document.getElementById('useImages').checked;
+
+    // 始终重新准备图片（使用CORS友好的源Picsum/Pollinations），确保导出时图片能正确嵌入
+    if (useImages) {
+      await prepareImagesForExport(currentOutline, industry);
+    }
 
     showToast('正在生成PPTX文件...','info');
     const pptx = new PptxGenJS();
@@ -2157,14 +3584,14 @@ async function exportPPT() {
         s.addText(p.title||'',{x:0.45,y:0.3,w: hasImg?5.3:8.8,h:0.65,fontSize:22,bold:true,color:c.d,fontFace:'Microsoft YaHei'});
         s.addShape(pptx.ShapeType.rect,{x:0.45,y:0.98,w:0.7,h:0.05,fill:{color:c.p}});
 
-        const pts = ca.filter(x=>x&&typeof x==='string').slice(0, hasImg?7:9);
+        const pts = ca.filter(x=>x&&typeof x==='string').slice(0, hasImg?5:7);
         const startY = 1.25;
-        const lineHeight = hasImg?0.62:0.58;
+        const lineHeight = hasImg?0.82:0.72;
         pts.forEach((pt,i)=>{
           const y=startY+i*lineHeight;
-          s.addShape(pptx.ShapeType.ellipse,{x:0.48,y:y+0.11,w:0.24,h:0.24,fill:{color:c.p}});
-          s.addText(String(i+1),{x:0.48,y:y+0.07,w:0.24,h:0.3,fontSize:10,bold:true,color:'ffffff',align:'center',valign:'middle'});
-          s.addText(String(pt),{x:0.88,y:y,w:hasImg?4.8:8.2,h:lineHeight-0.05,fontSize:11,color:'1f2937',fontFace:'Microsoft YaHei',valign:'middle',lineSpacing:1.2});
+          s.addShape(pptx.ShapeType.ellipse,{x:0.48,y:y+0.18,w:0.22,h:0.22,fill:{color:c.p}});
+          s.addText(String(i+1),{x:0.48,y:y+0.13,w:0.22,h:0.3,fontSize:11,bold:true,color:'ffffff',align:'center',valign:'middle',fontFace:'Microsoft YaHei'});
+          s.addText(String(pt),{x:0.85,y:y,w:hasImg?4.9:8.4,h:lineHeight-0.05,fontSize:hasImg?13:14,color:'1f2937',fontFace:'Microsoft YaHei',valign:'middle',lineSpacing:1.1,margin:0});
         });
 
         // 右侧配图 - 使用base64数据嵌入
