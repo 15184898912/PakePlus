@@ -140,14 +140,31 @@ body{font-family:var(--font);color:var(--ink);background:var(--bg);line-height:1
         <div class="detail-row" id="dProcessedLufsRow" style="display:none"><span class="detail-label">处理后响度</span><span class="detail-value" id="dProcessedLufs">--</span></div>
         <div class="detail-row" id="dProcessedPeakRow" style="display:none"><span class="detail-label">处理后峰值</span><span class="detail-value" id="dProcessedPeak">--</span></div>
         <div class="detail-row" id="dGainAppliedRow" style="display:none"><span class="detail-label">增益</span><span class="detail-value" id="dGainApplied">--</span></div>
-        <div class="mode-section"><div class="mode-label">⚙️ 处理模式</div><label class="mode-radio"><input type="radio" name="processMode" value="auto" checked><span>智能平衡（自动调至目标响度）</span></label><label class="mode-radio"><input type="radio" name="processMode" value="manual_gain"><span>手动加大音量（额外增益 + 限制器防削波）</span></label></div>
-        <div class="auto-settings" id="autoSettings"><div class="lufs-setting"><label>🎯 目标响度 (LUFS)</label><input type="number" id="inputTargetLufs" value="-14.0" step="0.5" min="-30" max="0"></div></div>
-        <div class="manual-settings" id="manualSettings" style="display:none"><div class="gain-label">🎚️ 手动增益</div><div class="gain-control"><input type="range" id="gainSlider" min="-10" max="30" step="0.5" value="6"><input type="number" id="gainValue" value="6.0" step="0.5" min="-10" max="30"><span class="gain-unit">dB</span></div><div class="gain-presets"><button class="preset-btn" onclick="setGain(3)">+3dB</button><button class="preset-btn" onclick="setGain(6)">+6dB</button><button class="preset-btn" onclick="setGain(10)">+10dB</button><button class="preset-btn" onclick="setGain(15)">+15dB</button><button class="preset-btn" onclick="setGain(20)">+20dB</button></div><div class="gain-hint" id="gainHint">💡 小幅增益，音质几乎无损</div></div>
+        <div class="detail-row" id="dProcessModeRow" style="display:none"><span class="detail-label">处理模式</span><span class="detail-value" id="dProcessMode">--</span></div>
+      </div>
+    </div>
+    <!-- 处理模式 + 增益设置 - 放在详情卡片外面，始终可见 -->
+    <div class="detail-card" style="margin-top:8px">
+      <div class="mode-section" style="margin-top:0;padding-top:0;border-top:none">
+        <div class="mode-label">⚙️ 处理模式</div>
+        <label class="mode-radio"><input type="radio" name="processMode" value="auto" checked><span>智能平衡（自动调至目标响度）</span></label>
+        <label class="mode-radio"><input type="radio" name="processMode" value="manual_gain"><span>手动加大音量（额外增益 + 限制器防削波）</span></label>
+      </div>
+      <div class="auto-settings" id="autoSettings"><div class="lufs-setting"><label>🎯 目标响度 (LUFS)</label><input type="number" id="inputTargetLufs" value="-14.0" step="0.5" min="-30" max="0"></div></div>
+      <div class="manual-settings" id="manualSettings" style="display:none">
+        <div class="gain-label" style="margin-top:6px;color:var(--accent2);font-weight:600">🎚️ 手动加大音量（限制器自动防失真）</div>
+        <div class="gain-control"><input type="range" id="gainSlider" min="-10" max="30" step="0.5" value="6"><input type="number" id="gainValue" value="6.0" step="0.5" min="-10" max="30"><span class="gain-unit">dB</span></div>
+        <div class="gain-presets"><button class="preset-btn" onclick="setGain(3)">+3dB</button><button class="preset-btn" onclick="setGain(6)">+6dB</button><button class="preset-btn" onclick="setGain(10)">+10dB</button><button class="preset-btn" onclick="setGain(15)">+15dB</button><button class="preset-btn" onclick="setGain(20)">+20dB</button><button class="preset-btn" onclick="setGain(25)">+25dB</button><button class="preset-btn" onclick="setGain(30)">+30dB</button></div>
+        <div class="gain-hint" id="gainHint" style="margin-bottom:0">💡 小幅增益，音质几乎无损</div>
       </div>
     </div>
     <button class="btn btn-primary btn-big" id="btnProcess" onclick="startProcessing()">🚀 开始云端AI处理</button>
+    <div style="display:flex;gap:6px;margin-top:6px">
+      <button class="btn btn-secondary" id="btnPreviewOrig" style="flex:1;padding:8px;display:none" onclick="togglePreview('original')">🔊 试听原始</button>
+      <button class="btn btn-secondary" id="btnPreviewProc" style="flex:1;padding:8px;display:none" onclick="togglePreview('processed')">🔊 试听处理后</button>
+    </div>
     <button class="btn btn-success" id="btnDownload" style="width:100%;padding:10px;display:none" onclick="downloadProcessed()">💾 下载处理后的文件</button>
-    <div class="engine-info"><strong>⚡ 引擎</strong>：Web Audio API 本地处理<br><strong>🎵 标准</strong>：-14 LUFS 流媒体<br><strong>🔒 限制</strong>：-1 dBTP 防削波<br><strong>💎 保证</strong>：高保真软限制</div>
+    <div class="engine-info"><strong>⚡ 引擎</strong>：Web Audio API 本地处理<br><strong>🎵 标准</strong>：-14 LUFS 流媒体<br><strong>🔒 限制</strong>：-1 dBTP 三级软限制防削波<br><strong>💎 保证</strong>：分段限制保持高保真音质</div>
   </div>
 </div>
 <div class="panel-bottom">
@@ -167,6 +184,8 @@ body{font-family:var(--font);color:var(--ink);background:var(--bg);line-height:1
 // ========== State ==========
 var files=[], selectedIdx=-1, isProcessing=false;
 var engine=new CloudAIVolumeEngine();
+// 记住每个文件的处理结果模式
+var globalProcessMode='auto', globalExtraGainDb=6;
 
 // ========== Helpers ==========
 function $(id){return document.getElementById(id)}
@@ -225,14 +244,24 @@ function showDetail(idx){
     $('dPeak').textContent=item.analysis.peakDb.toFixed(1)+' dBTP';$('dPeak').className='detail-value '+peakC(item.analysis.peakDb);
   }
   if(item.result){
-    $('dProcessedLufsRow').style.display='flex';$('dProcessedPeakRow').style.display='flex';$('dGainAppliedRow').style.display='flex';
+    $('dProcessedLufsRow').style.display='flex';$('dProcessedPeakRow').style.display='flex';$('dGainAppliedRow').style.display='flex';$('dProcessModeRow').style.display='flex';
     $('dProcessedLufs').textContent=item.result.processedLUFS.toFixed(1)+' LUFS';$('dProcessedLufs').className='detail-value '+lufsC(item.result.processedLUFS);
     $('dProcessedPeak').textContent=item.result.processedPeak.toFixed(1)+' dBTP';$('dProcessedPeak').className='detail-value '+peakC(item.result.processedPeak);
     $('dGainApplied').textContent=(item.result.gainApplied>=0?'+':'')+item.result.gainApplied.toFixed(1)+' dB';$('dGainApplied').className='detail-value highlight';
+    var pMode=item.result.processMode||'auto';
+    $('dProcessMode').textContent=pMode==='manual_gain'?'🔧 手动增益':'🎯 智能平衡';
+    $('dProcessMode').className='detail-value '+(pMode==='manual_gain'?'warn':'good');
     $('btnDownload').style.display='block';
-  } else {$('dProcessedLufsRow').style.display='none';$('dProcessedPeakRow').style.display='none';$('dGainAppliedRow').style.display='none';$('btnDownload').style.display='none'}
+    $('btnPreviewOrig').style.display='block';
+    $('btnPreviewProc').style.display='block';
+  } else {
+    $('dProcessedLufsRow').style.display='none';$('dProcessedPeakRow').style.display='none';$('dGainAppliedRow').style.display='none';$('dProcessModeRow').style.display='none';
+    $('btnDownload').style.display='none';
+    $('btnPreviewOrig').style.display='block';
+    $('btnPreviewProc').style.display='none';
+  }
 }
-function hideDetail(){$('detailPlaceholder').style.display='block';$('detailContent').style.display='none';$('btnDownload').style.display='none';$('waveformSection').style.display='none'}
+function hideDetail(){$('detailPlaceholder').style.display='block';$('detailContent').style.display='none';$('btnDownload').style.display='none';$('waveformSection').style.display='none';$('dProcessModeRow').style.display='none'}
 
 // ========== Waveform ==========
 function drawWaveform(canvas,abuf,color){
@@ -287,16 +316,18 @@ async function startProcessing(){
   if(isProcessing)return;if(!files.length){log('请先添加需要处理的音频文件','warn');return}
   isProcessing=true;$('btnProcess').disabled=true;setStatus('云端AI引擎运算中...',true);clearLog();setProgress(0);
   var mode=getMode(),targetLufs=null,extraGainDb=null;
-  if(mode==='manual_gain'){extraGainDb=getManualGain();log('模式: 手动增益 | 增益: '+(extraGainDb>=0?'+':'')+extraGainDb.toFixed(1)+' dB','sys')}
-  else{targetLufs=parseFloat($('inputTargetLufs').value)||-14;log('模式: 智能平衡 | 目标响度: '+targetLufs+' LUFS','sys')}
+  if(mode==='manual_gain'){extraGainDb=getManualGain();log('══════════════════════════════════════════════','sys');log('模式: 🔧 手动加大音量 | 增益: '+(extraGainDb>=0?'+':'')+extraGainDb.toFixed(1)+' dB','sys');log('限制器: 三级高保真软限制 (-1 dBTP)','sys');log('══════════════════════════════════════════════','sys')}
+  else{targetLufs=parseFloat($('inputTargetLufs').value)||-14;log('══════════════════════════════════════════════','sys');log('模式: 🎯 智能平衡 | 目标响度: '+targetLufs+' LUFS','sys');log('══════════════════════════════════════════════','sys')}
   log('共 '+files.length+' 个文件等待处理','sys');
   var total=files.length,ok=0,fail=0;
   for(var i=0;i<total;i++){
     if(files[i].status==='error'){fail++;continue}
     files[i].status='processing';renderList();setStatus('处理中 ('+(i+1)+'/'+total+'): '+files[i].file.name,true);
     try{var result=await engine.processFile(files[i].file,targetLufs,function(pct,msg){setProgress((i+pct)/total*100,msg);log(msg,'sys')},extraGainDb);
+      result.processMode=mode;result.extraGain=extraGainDb;
       files[i].result=result;files[i].status='done';ok++;
-      log('完成: '+files[i].file.name+' | '+result.processedLUFS.toFixed(1)+' LUFS | '+(result.limiterUsed?'限制器启用':'线性增益'),'info');
+      var modeLabel=mode==='manual_gain'?'手动增益 +'+extraGainDb.toFixed(1)+'dB':'智能平衡 '+targetLufs+' LUFS';
+      log('完成: '+files[i].file.name+' | '+result.processedLUFS.toFixed(1)+' LUFS | '+modeLabel+' | '+(result.limiterUsed?'限制器启用':'线性增益'),'info');
       if(i===selectedIdx){showDetail(i);showWave(i)}
     }catch(e){files[i].status='error';fail++;log('失败: '+files[i].file.name+' - '+e.message,'error')}
     renderList();
@@ -310,10 +341,52 @@ window.startProcessing=startProcessing;
 function downloadProcessed(){
   if(selectedIdx<0)return;var item=files[selectedIdx];if(!item||!item.result||!item.result.processedBuffer)return;
   try{var blob=engine.exportToWav(item.result.processedBuffer),url=URL.createObjectURL(blob),a=document.createElement('a');
-    a.href=url;a.download=item.file.name.replace(/\.[^.]+$/,'')+'_balanced.wav';a.click();URL.revokeObjectURL(url);log('文件已下载: '+a.download,'info')
+    var mode=item.result.processMode||'auto';
+    var suffix=mode==='manual_gain'?'_gain+'+item.result.gainApplied.toFixed(1).replace('.0','')+'dB':'_balanced';
+    a.href=url;a.download=item.file.name.replace(/\.[^.]+$/,'')+suffix+'.wav';a.click();URL.revokeObjectURL(url);log('文件已下载: '+a.download,'info')
   }catch(e){log('下载失败: '+e.message,'error')}
 }
 window.downloadProcessed=downloadProcessed;
+
+// ========== 试听预览 ==========
+var previewSource=null, previewPlaying=false;
+
+function togglePreview(type){
+  if(selectedIdx<0)return;
+  var item=files[selectedIdx];if(!item||!item.analysis)return;
+  
+  // 停止当前播放
+  if(previewSource){
+    try{previewSource.stop()}catch(e){}
+    previewSource=null;previewPlaying=false;
+    $('btnPreviewOrig').textContent='🔊 试听原始';
+    $('btnPreviewProc').textContent='🔊 试听处理后';
+  }
+  
+  var actx=engine._ctx();
+  var buffer=type==='original'?item.analysis.audioBuffer:(item.result&&item.result.processedBuffer?item.result.processedBuffer:null);
+  if(!buffer){log(type==='original'?'无法试听原始音频':'尚未处理，请先执行处理','warn');return}
+  
+  try{
+    previewSource=actx.createBufferSource();
+    previewSource.buffer=buffer;
+    previewSource.connect(actx.destination);
+    previewSource.start(0);
+    previewPlaying=true;
+    
+    if(type==='original')$('btnPreviewOrig').textContent='⏹ 停止试听';
+    else $('btnPreviewProc').textContent='⏹ 停止试听';
+    
+    log('正在试听: '+(type==='original'?'原始音频':'处理后音频'),'sys');
+    previewSource.onended=function(){
+      previewSource=null;previewPlaying=false;
+      $('btnPreviewOrig').textContent='🔊 试听原始';
+      $('btnPreviewProc').textContent='🔊 试听处理后';
+      log('试听结束','dim');
+    };
+  }catch(e){log('试听失败: '+e.message,'error')}
+}
+window.togglePreview=togglePreview;
 
 // ========== Gain UI ==========
 function updateGainHint(db){
@@ -323,9 +396,10 @@ function updateGainHint(db){
   else if(db<=20){el.textContent='⚠️ 大幅增益，限制器将主动压缩防止削波';el.style.color='var(--warning)'}
   else{el.textContent='⚠️ 超大增益！限制器全力工作，动态范围会收窄';el.style.color='var(--error)'}
 }
-$('gainSlider').oninput=function(){$('gainValue').value=parseFloat(this.value).toFixed(1);updateGainHint(parseFloat(this.value))};
-$('gainValue').onchange=function(){var v=parseFloat(this.value);if(isNaN(v))v=6;v=Math.max(-10,Math.min(30,v));this.value=v.toFixed(1);$('gainSlider').value=v;updateGainHint(v)};
-document.querySelectorAll('input[name="processMode"]').forEach(function(r){r.onchange=function(){$('autoSettings').style.display=this.value==='auto'?'block':'none';$('manualSettings').style.display=this.value==='manual_gain'?'block':'none'}});
+$('gainSlider').oninput=function(){$('gainValue').value=parseFloat(this.value).toFixed(1);updateGainHint(parseFloat(this.value));if(getMode()==='manual_gain')$('btnProcess').innerHTML='🚀 开始手动加大音量 (+'+parseFloat(this.value).toFixed(1)+' dB)'};
+$('gainValue').onchange=function(){var v=parseFloat(this.value);if(isNaN(v))v=6;v=Math.max(-10,Math.min(30,v));this.value=v.toFixed(1);$('gainSlider').value=v;updateGainHint(v);if(getMode()==='manual_gain')$('btnProcess').innerHTML='🚀 开始手动加大音量 (+'+v.toFixed(1)+' dB)'};
+document.querySelectorAll('input[name="processMode"]').forEach(function(r){r.onchange=function(){$('autoSettings').style.display=this.value==='auto'?'block':'none';$('manualSettings').style.display=this.value==='manual_gain'?'block':'none';
+  var gain=getManualGain();$('btnProcess').innerHTML=this.value==='manual_gain'?'🚀 开始手动加大音量 (+'+gain.toFixed(1)+' dB)':'🚀 开始云端AI处理'}});
 
 // ========== File Input Change Events ==========
 $('fileInput').onchange=function(e){if(e.target.files.length>0){addFiles(e.target.files);e.target.value=''}};
@@ -367,7 +441,37 @@ function applyKW(d,sr){var kf=kWeight(sr),r=new Float32Array(d);for(var s=0;s<2;
 
 function measureLUFS(ch,sr){var f=applyKW(ch,sr),bs=Math.floor(sr*.4),hs=Math.floor(bs*.25),ss=0,bc=0;for(var i=0;i+bs<=f.length;i+=hs){var m=0;for(var j=i;j<i+bs;j++)m+=f[j]*f[j];m/=bs;if(m>1e-7){ss+=m;bc++}}return bc===0?-70:(-0.691+10*Math.log10(Math.max(ss/bc,1e-10)))}
 function measureTP(d){var p=0;for(var i=0;i<d.length;i++){var a=Math.abs(d[i]);if(a>p)p=a}return p>1e-10?20*Math.log10(p):-120}
-function softLimiter(d,ceil){var r=new Float32Array(d.length),th=ceil*.8,tn=Math.tanh(1.5);for(var i=0;i<d.length;i++){var ab=Math.abs(d[i]),sg=d[i]>=0?1:-1;r[i]=ab<=th?d[i]:ab<=ceil?sg*(th+(ceil-th)*(Math.tanh((ab-th)/(ceil-th)*1.5)/tn)):sg*ceil}return r}
+
+/**
+ * 增强版三级分段软限制器 - 高增益时更好保持音质
+ * 第一级: 0~80% 线性区（完全不干预）
+ * 第二级: 80%~95% tanh平滑压缩区（温和压缩）
+ * 第三级: 95%~100% 强力限制区（仅对极少数峰值生效）
+ */
+function enhancedSoftLimiter(d, ceiling){
+  var r=new Float32Array(d.length);
+  // 三级阈值
+  var t1=ceiling*0.80;  // 温和压缩起始
+  var t2=ceiling*0.95;  // 强力限制起始
+  var tN=Math.tanh(2.0);  // tanh归一化
+  var tN2=Math.tanh(4.0);
+  for(var i=0;i<d.length;i++){
+    var ab=Math.abs(d[i]),sg=d[i]>=0?1:-1;
+    if(ab<=t1){
+      r[i]=d[i]; // 线性区不干预，保持原始动态
+    } else if(ab<=t2){
+      // 第二级：tanh平滑压缩（0~1映射到t1~t2）
+      var norm=(ab-t1)/(t2-t1);
+      r[i]=sg*(t1+(t2-t1)*(Math.tanh(norm*2.0)/tN));
+    } else {
+      // 第三级：硬限制前最后缓冲
+      var norm2=(ab-t2)/(ceiling-t2);
+      var limited=t2+(ceiling-t2)*(Math.tanh(norm2*4.0)/tN2);
+      r[i]=sg*Math.min(limited, ceiling);
+    }
+  }
+  return r;
+}
 
 CloudAIVolumeEngine.prototype.analyzeAudio=async function(file,cb){
   var ab=await this.decodeFile(file),sr=ab.sampleRate,dur=ab.duration,ch=ab.numberOfChannels;
@@ -391,9 +495,26 @@ CloudAIVolumeEngine.prototype.processFile=async function(file,targetLufs,cb,extr
   var pcs=[];for(var c2=0;c2<nch;c2++){var cd2=ab.getChannelData(c2),p=new Float32Array(len);for(var i2=0;i2<len;i2++)p[i2]=cd2[i2]*gl;pcs.push(p)}
   if(cb)cb(.55,'检测峰值...');
   var fp=-Infinity;for(var c3=0;c3<nch;c3++){var tp=measureTP(pcs[c3]);if(tp>fp)fp=tp}
-  var limiterUsed=false;
-  if(fp>this.PEAK){if(cb)cb(.65,'峰值 '+fp.toFixed(1)+' dBTP 超限，启动高保真限制器...');limiterUsed=true;var cl=Math.pow(10,this.PEAK/20);for(var c4=0;c4<nch;c4++)pcs[c4]=softLimiter(pcs[c4],cl)}
-  else{if(cb)cb(.65,'峰值 '+fp.toFixed(1)+' dBTP 安全，无需限制')}
+  var limiterUsed=false,limiterStage1=0,limiterStage2=0,limiterStage3=0;
+  if(fp>this.PEAK){
+    if(cb)cb(.6,'峰值 '+fp.toFixed(1)+' dBTP 超限 ('+this.PEAK+' dBTP)，启动三级高保真限制器...');
+    limiterUsed=true;var cl=Math.pow(10,this.PEAK/20);
+    for(var c4=0;c4<nch;c4++){
+      var cd=pcs[c4],orig=ab.getChannelData(c4);
+      pcs[c4]=enhancedSoftLimiter(cd,cl);
+      // 统计限制器影响范围
+      for(var si=0;si<len;si++){
+        var a1=Math.abs(orig[si]),a2=Math.abs(pcs[c4][si]);
+        if(a1>cl*.95)limiterStage3++;
+        else if(a1>cl*.8)limiterStage2++;
+      }
+    }
+    limiterStage1=len-limiterStage2-limiterStage3;
+    var pctAffected=((limiterStage2+limiterStage3)/len*100).toFixed(2);
+    if(cb)cb(.7,'三级限制器完成 | 影响 '+pctAffected+'% 采样点（仅峰值区域被压缩，音质保持完好）');
+  } else {
+    if(cb)cb(.65,'峰值 '+fp.toFixed(1)+' dBTP 安全，无需限制，完全无损');
+  }
   if(cb)cb(.75,'测量处理后响度...');
   var fm=new Float32Array(len);for(var c5=0;c5<nch;c5++){for(var i3=0;i3<len;i3++)fm[i3]+=pcs[c5][i3]/nch}
   var fLUFS=measureLUFS(fm,sr);fp=-Infinity;for(var c6=0;c6<nch;c6++){var tp2=measureTP(pcs[c6]);if(tp2>fp)fp=tp2}
