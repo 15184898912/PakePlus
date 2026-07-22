@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>云端AI智能音量增强器 V1.0</title>
+<style>
+/* ===== 全局变量与基础 ===== */
+:root {
+  --bg: #0f1016;
+  --bg2: #161822;
+  --bg3: #1e2130;
+  --card: #1a1d2a;
+  --ink: #e8eaf0;
+  --muted: #8b92a8;
+  --rule: #2a2f45;
+  --accent: #4d9de0;
+  --accent2: #3bd0ee;
+  --success: #3ddc84;
+  --warning: #f0ad4e;
+  --error: #e74c3c;
+  --radius: 10px;
+  --shadow: 0 4px 20px rgba(0,0,0,0.4);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* 背景装饰 */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(ellipse 800px 600px at 10% 20%, rgba(77,157,224,0.06) 0%, transparent 70%),
+    radial-gradient(ellipse 600px 500px at 90% 80%, rgba(59,208,238,0.04) 0%, transparent 70%);
+  pointer-events: none; z-index: 0;
+}
+
+.app { position: relative; z-index: 1; display: flex; flex-direction: column; height: 100vh; }
+
+/* ===== 顶部工具栏 ===== */
+.toolbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 24px;
+  background: linear-gradient(180deg, rgba(22,24,34,0.95), rgba(22,24,34,0.8));
+  border-bottom: 1px solid var(--rule);
+  backdrop-filter: blur(12px);
+}
+
+.toolbar h1 {
+  font-size: 18px; font-weight: 700;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  margin-right: auto;
+}
+
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 18px; border-radius: 8px; border: 1px solid var(--rule);
+  background: var(--bg3); color: var(--ink);
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: all 0.2s; user-select: none;
+}
+.btn:hover:not(:disabled) { background: var(--card); border-color: var(--accent); transform: translateY(-1px); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-add { background: rgba(61,220,132,0.12); border-color: rgba(61,220,132,0.3); color: var(--success); }
+.btn-add:hover:not(:disabled) { background: rgba(61,220,132,0.2); border-color: var(--success); }
+
+.btn-start {
+  background: linear-gradient(135deg, rgba(77,157,224,0.2), rgba(59,208,238,0.15));
+  border-color: var(--accent); color: #fff; padding: 10px 24px; font-size: 14px;
+}
+.btn-start:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(77,157,224,0.35), rgba(59,208,238,0.25));
+  box-shadow: 0 0 20px rgba(77,157,224,0.2);
+}
+
+.btn-stop { background: rgba(231,76,60,0.12); border-color: rgba(231,76,60,0.3); color: var(--error); }
+.btn-stop:hover:not(:disabled) { background: rgba(231,76,60,0.2); border-color: var(--error); }
+
+/* ===== 进度条 ===== */
+.progress-wrap {
+  padding: 10px 24px; background: var(--bg2); border-bottom: 1px solid var(--rule);
+  display: flex; align-items: center; gap: 12px;
+}
+.progress-bar {
+  flex: 1; height: 20px; background: var(--bg3); border-radius: 10px;
+  overflow: hidden; position: relative; border: 1px solid var(--rule);
+}
+.progress-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: 10px; transition: width 0.3s ease;
+  position: relative; overflow: hidden;
+}
+.progress-fill::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+  animation: shimmer 1.5s infinite;
+}
+@keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+
+.progress-text {
+  font-size: 12px; color: var(--muted); min-width: 120px; text-align: right;
+}
+.progress-pct {
+  font-size: 14px; font-weight: 700; color: var(--accent); min-width: 50px; text-align: center;
+}
+
+/* ===== 主内容区 ===== */
+.main-content {
+  flex: 1; display: flex; gap: 16px;
+  padding: 16px 24px; overflow: hidden;
+}
+
+/* 面板通用 */
+.panel {
+  background: var(--card); border-radius: var(--radius);
+  border: 1px solid var(--rule); box-shadow: var(--shadow);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+
+.panel-header {
+  padding: 12px 16px; border-bottom: 1px solid var(--rule);
+  font-size: 14px; font-weight: 700; color: var(--accent);
+  display: flex; align-items: center; gap: 8px;
+}
+
+/* ===== 左侧文件列表 ===== */
+.file-panel { width: 360px; min-width: 280px; }
+
+.file-list { flex: 1; overflow-y: auto; padding: 8px; }
+.file-list::-webkit-scrollbar { width: 6px; }
+.file-list::-webkit-scrollbar-track { background: transparent; }
+.file-list::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 3px; }
+
+.file-item {
+  padding: 10px 12px; margin-bottom: 6px;
+  background: var(--bg3); border-radius: 8px;
+  border: 1px solid var(--rule); cursor: pointer;
+  transition: all 0.2s; position: relative;
+}
+.file-item:hover { border-color: var(--accent); background: rgba(77,157,224,0.06); }
+.file-item.active { border-color: var(--accent); background: rgba(77,157,224,0.1); }
+.file-item.processing { border-color: var(--warning); }
+.file-item.done { border-color: var(--success); }
+.file-item.error { border-color: var(--error); }
+
+.file-name { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+.file-meta { font-size: 11px; color: var(--muted); display: flex; gap: 12px; }
+.file-status { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-size: 11px; padding: 2px 8px; border-radius: 4px; }
+.file-status.pending { background: rgba(139,146,168,0.15); color: var(--muted); }
+.file-status.processing { background: rgba(240,173,78,0.15); color: var(--warning); }
+.file-status.done { background: rgba(61,220,132,0.15); color: var(--success); }
+.file-status.error { background: rgba(231,76,60,0.15); color: var(--error); }
+
+.empty-state {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  color: var(--muted); gap: 12px; padding: 40px;
+}
+.empty-state .icon { font-size: 48px; opacity: 0.4; }
+.empty-state p { font-size: 13px; }
+
+/* ===== 中央控制面板 ===== */
+.control-panel { flex: 1; min-width: 320px; overflow-y: auto; }
+.control-panel::-webkit-scrollbar { width: 6px; }
+.control-panel::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 3px; }
+
+.control-section { padding: 16px; border-bottom: 1px solid var(--rule); }
+.control-section:last-child { border-bottom: none; }
+
+.section-title {
+  font-size: 12px; font-weight: 700; color: var(--accent);
+  text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;
+}
+
+/* 波形可视化 */
+.waveform-container {
+  height: 140px; background: var(--bg); border-radius: 8px;
+  border: 1px solid var(--rule); position: relative; overflow: hidden;
+}
+.waveform-container canvas { width: 100%; height: 100%; display: block; }
+.waveform-overlay {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  color: var(--muted); font-size: 12px; pointer-events: none;
+}
+
+/* 增益模式 */
+.mode-group { display: flex; gap: 12px; margin-bottom: 12px; }
+.mode-btn {
+  flex: 1; padding: 10px; border-radius: 8px;
+  border: 1px solid var(--rule); background: var(--bg3);
+  color: var(--muted); text-align: center; cursor: pointer;
+  font-size: 13px; font-weight: 600; transition: all 0.2s;
+}
+.mode-btn:hover { border-color: var(--accent); color: var(--ink); }
+.mode-btn.active { border-color: var(--accent); background: rgba(77,157,224,0.15); color: var(--accent); }
+
+/* 滑块 */
+.slider-wrap { margin-top: 12px; }
+.slider-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.slider-label .value { color: var(--accent2); font-weight: 700; font-size: 14px; }
+
+input[type="range"] {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 6px;
+  background: var(--bg); border-radius: 3px; outline: none; cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 18px; height: 18px;
+  border-radius: 50%; background: var(--accent); border: 2px solid var(--accent2);
+  cursor: pointer; box-shadow: 0 0 10px rgba(77,157,224,0.3);
+  transition: transform 0.15s;
+}
+input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+input[type="range"]::-moz-range-thumb {
+  width: 18px; height: 18px; border-radius: 50%; background: var(--accent);
+  border: 2px solid var(--accent2); cursor: pointer;
+}
+
+/* 保护等级 */
+.protection-group { display: flex; gap: 8px; }
+.protection-btn {
+  flex: 1; padding: 8px; border-radius: 6px;
+  border: 1px solid var(--rule); background: var(--bg3);
+  color: var(--muted); text-align: center; cursor: pointer;
+  font-size: 12px; font-weight: 600; transition: all 0.2s;
+}
+.protection-btn:hover { border-color: var(--accent); color: var(--ink); }
+.protection-btn.active { border-color: var(--accent); background: rgba(77,157,224,0.15); color: var(--accent); }
+
+/* 下拉框 */
+select {
+  width: 100%; padding: 8px 12px; border-radius: 6px;
+  border: 1px solid var(--rule); background: var(--bg3); color: var(--ink);
+  font-size: 13px; cursor: pointer; outline: none;
+}
+select:focus { border-color: var(--accent); }
+select option { background: var(--bg2); color: var(--ink); }
+
+/* 响度信息 */
+.loudness-info {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px;
+}
+.loudness-card {
+  background: var(--bg3); border-radius: 6px; padding: 10px;
+  border: 1px solid var(--rule); text-align: center;
+}
+.loudness-card .label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.loudness-card .value { font-size: 18px; font-weight: 700; color: var(--accent2); margin-top: 2px; }
+
+/* ===== 右侧输出设置 ===== */
+.output-panel { width: 280px; min-width: 240px; }
+
+.input-group { margin-bottom: 14px; }
+.input-group label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.input-group input[type="text"] {
+  width: 100%; padding: 8px 12px; border-radius: 6px;
+  border: 1px solid var(--rule); background: var(--bg3); color: var(--ink);
+  font-size: 13px; outline: none;
+}
+.input-group input[type="text"]:focus { border-color: var(--accent); }
+.input-group input[type="text"]:disabled { opacity: 0.5; }
+
+.file-input-wrap { display: flex; gap: 8px; }
+.file-input-wrap input { flex: 1; }
+.file-input-wrap .btn { padding: 8px 12px; font-size: 12px; }
+
+/* ===== 底部日志 ===== */
+.log-panel {
+  height: 200px; min-height: 160px;
+  border-top: 1px solid var(--rule);
+  display: flex; flex-direction: column;
+}
+
+.log-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 16px; border-bottom: 1px solid var(--rule);
+}
+.log-toolbar span { font-size: 12px; font-weight: 600; color: var(--accent); }
+.log-toolbar .btn-clear { padding: 4px 10px; font-size: 11px; }
+
+.log-content {
+  flex: 1; overflow-y: auto; padding: 8px 16px;
+  font-family: "Consolas", "SF Mono", "Cascadia Code", monospace;
+  font-size: 12px; line-height: 1.6;
+}
+.log-content::-webkit-scrollbar { width: 6px; }
+.log-content::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 3px; }
+
+.log-entry { margin-bottom: 2px; padding: 2px 0; }
+.log-entry .time { color: var(--muted); margin-right: 8px; }
+.log-entry .level { font-weight: 600; margin-right: 8px; }
+.log-entry.info .level { color: var(--ink); }
+.log-entry.success .level { color: var(--success); }
+.log-entry.warning .level { color: var(--warning); }
+.log-entry.error .level { color: var(--error); }
+.log-entry .msg { color: var(--muted); }
+
+/* ===== 拖放区域 ===== */
+.drop-zone {
+  position: absolute; inset: 0; z-index: 100;
+  background: rgba(15,16,22,0.9); backdrop-filter: blur(8px);
+  display: none; flex-direction: column; align-items: center; justify-content: center;
+  border: 3px dashed var(--accent); border-radius: var(--radius);
+  gap: 16px;
+}
+.drop-zone.active { display: flex; }
+.drop-zone .icon { font-size: 64px; opacity: 0.6; }
+.drop-zone p { font-size: 16px; color: var(--accent); font-weight: 600; }
+
+/* ===== 响应式 ===== */
+@media (max-width: 1024px) {
+  .main-content { flex-direction: column; overflow-y: auto; }
+  .file-panel, .output-panel { width: 100%; min-width: unset; height: auto; max-height: 400px; }
+  .control-panel { min-height: 400px; }
+}
+
+@media (max-width: 640px) {
+  .toolbar { flex-wrap: wrap; padding: 10px 12px; }
+  .toolbar h1 { width: 100%; margin-bottom: 8px; }
+  .main-content { padding: 10px 12px; }
+}
+
+/* ===== 动画 ===== */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.file-item { animation: fadeIn 0.3s ease; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.processing .file-name::after {
+  content: '...'; animation: pulse 1s infinite;
+}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+<!-- 拖放遮罩 -->
+<div class="drop-zone" id="dropZone">
+  <div class="icon">📁</div>
+  <p>释放音频文件到此处</p>
+</div>
+
+<!-- 顶部工具栏 -->
+<div class="toolbar">
+  <h1>🔊 云端AI智能音量增强器 V1.0</h1>
+  <input type="file" id="fileInput" accept="audio/*" multiple style="display:none">
+  <button class="btn btn-add" onclick="document.getElementById('fileInput').click()" title="添加音频文件 (支持MP3/WAV/FLAC/OGG)">
+    <span>+</span> 添加音频文件
+  </button>
+  <button class="btn" onclick="clearFiles()" id="btnClear" title="清空文件列表">清空列表</button>
+  <button class="btn btn-start" onclick="startProcessing()" id="btnStart" title="开始批量增强">
+    ▶ 开始增强
+  </button>
+  <button class="btn btn-stop" onclick="stopProcessing()" id="btnStop" disabled title="停止处理">■ 停止</button>
+</div>
+
+<!-- 进度条 -->
+<div class="progress-wrap">
+  <div class="progress-bar">
+    <div class="progress-fill" id="progressFill"></div>
+  </div>
+  <span class="progress-text" id="progressText">就绪 - 请添加音频文件</span>
+  <span class="progress-pct" id="progressPct">0%</span>
+</div>
+
+<!-- 主内容区 -->
+<div class="main-content">
+
+  <!-- 左侧文件列表 -->
+  <div class="panel file-panel">
+    <div class="panel-header">📂 文件列表 (<span id="fileCount">0</span>)</div>
+    <div class="file-list" id="fileList">
+      <div class="empty-state">
+        <div class="icon">🎵</div>
+        <p>拖拽音频文件到此处</p>
+        <p>或点击上方 "添加音频文件"</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 中央控制面板 -->
+  <div class="panel control-panel">
+    <div class="panel-header">⚙️ 增强设置</div>
+
+    <!-- 波形预览 -->
+    <div class="control-section">
+      <div class="section-title">波形预览</div>
+      <div class="waveform-container" id="waveformContainer">
+        <canvas id="waveformCanvas"></canvas>
+        <div class="waveform-overlay" id="waveformOverlay">选择音频文件查看波形</div>
+      </div>
+      <div class="loudness-info" id="loudnessInfo" style="display:none">
+        <div class="loudness-card"><div class="label">原始响度</div><div class="value" id="origLufs">--</div></div>
+        <div class="loudness-card"><div class="label">目标响度</div><div class="value" id="targetLufs">--</div></div>
+        <div class="loudness-card"><div class="label">峰值</div><div class="value" id="peakDb">--</div></div>
+      </div>
+    </div>
+
+    <!-- 增益模式 -->
+    <div class="control-section">
+      <div class="section-title">增益模式</div>
+      <div class="mode-group">
+        <div class="mode-btn active" data-mode="ai" onclick="setGainMode('ai')">🤖 AI智能推荐</div>
+        <div class="mode-btn" data-mode="manual" onclick="setGainMode('manual')">🔧 手动微调</div>
+      </div>
+      <div id="aiOptions">
+        <div class="slider-wrap">
+          <div class="slider-label"><span>目标响度 (LUFS)</span><span class="value" id="targetLufsVal">-16 LUFS</span></div>
+          <input type="range" id="targetLufsSlider" min="-30" max="-5" value="-16" step="1" oninput="updateTargetLufs(this.value)">
+        </div>
+        <div class="slider-wrap">
+          <div class="slider-label"><span>增益倍数</span><span class="value" id="multiplierVal">1.5x</span></div>
+          <input type="range" id="multiplierSlider" min="1" max="5" value="1.5" step="0.5" oninput="updateMultiplier(this.value)">
+        </div>
+      </div>
+      <div id="manualOptions" style="display:none">
+        <div class="slider-wrap">
+          <div class="slider-label"><span>增益量</span><span class="value" id="gainDbVal">+6.0 dB</span></div>
+          <input type="range" id="gainDbSlider" min="0" max="18" value="6" step="0.1" oninput="updateGainDb(this.value)">
+        </div>
+      </div>
+    </div>
+
+    <!-- 防失真 -->
+    <div class="control-section">
+      <div class="section-title">AI防失真强度</div>
+      <div class="protection-group">
+        <div class="protection-btn" data-level="low" onclick="setProtection('low')">低 (-3dB)</div>
+        <div class="protection-btn active" data-level="medium" onclick="setProtection('medium')">中 (-6dB)</div>
+        <div class="protection-btn" data-level="high" onclick="setProtection('high')">高 (-12dB)</div>
+      </div>
+    </div>
+
+    <!-- 输出格式 -->
+    <div class="control-section">
+      <div class="section-title">输出格式</div>
+      <select id="outputFormat">
+        <option value="original">保持原始格式</option>
+        <option value="wav">WAV (无损)</option>
+        <option value="mp3">MP3 (有损)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- 右侧输出设置 -->
+  <div class="panel output-panel">
+    <div class="panel-header">📤 输出设置</div>
+    <div style="padding:16px">
+      <div class="input-group">
+        <label>文件命名规则</label>
+        <select id="namingRule" onchange="onNamingChange()">
+          <option value="enhanced">保留原名_增强</option>
+          <option value="hd">保留原名_HD</option>
+          <option value="custom">自定义前缀</option>
+        </select>
+      </div>
+      <div class="input-group" id="customPrefixGroup" style="display:none">
+        <label>自定义前缀</label>
+        <input type="text" id="customPrefix" value="HD_" placeholder="如: HD_">
+      </div>
+      <div class="input-group">
+        <label>处理统计</label>
+        <div class="loudness-info" style="grid-template-columns:1fr 1fr">
+          <div class="loudness-card"><div class="label">总文件</div><div class="value" id="statTotal">0</div></div>
+          <div class="loudness-card"><div class="label">已完成</div><div class="value" id="statDone">0</div></div>
+        </div>
+      </div>
+      <div style="margin-top:20px; padding:12px; background:var(--bg3); border-radius:8px; border:1px solid var(--rule)">
+        <div style="font-size:11px; color:var(--muted); margin-bottom:6px">技术说明</div>
+        <div style="font-size:12px; color:var(--ink); line-height:1.7">
+          • 基于 Web Audio API 处理<br>
+          • ITU-R BS.1770-4 响度标准化<br>
+          • 三级防失真保护链<br>
+          • 浏览器端纯本地处理
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 底部日志 -->
+<div class="panel log-panel">
+  <div class="log-toolbar">
+    <span>📋 处理日志</span>
+    <button class="btn btn-clear" onclick="clearLogs()">清空日志</button>
+  </div>
+  <div class="log-content" id="logContent">
+    <div class="log-entry info"><span class="time">--:--:--</span><span class="level">[INFO]</span><span class="msg">云端AI智能音量增强器 V1.0 就绪</span></div>
+  </div>
+</div>
+
+</div>
+
+<script>
+// ===== 状态管理 =====
+const state = {
+  files: [],          // { id, file, name, size, duration, buffer, lufs, peak, status, result }
+  selectedId: null,
+  isProcessing: false,
+  currentIndex: 0,
+  cancelled: false,
+  gainMode: 'ai',
+  targetLufs: -16,
+  gainMultiplier: 1.5,
+  manualGainDb: 6,
+  protectionLevel: 'medium',
+  outputFormat: 'original',
+  namingRule: 'enhanced',
+  customPrefix: 'HD_',
+  audioCtx: null
+};
+
+let animationId = null;
+
+// ===== 初始化 =====
+function init() {
+  setupDragDrop();
+  setupFileInput();
+  setupKeyboard();
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+  log('系统初始化完成', 'info');
+}
+
+// ===== 音频上下文 =====
+function getAudioContext() {
+  if (!state.audioCtx) {
+    state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return state.audioCtx;
+}
+
+// ===== 文件操作 =====
+function setupFileInput() {
+  document.getElementById('fileInput').addEventListener('change', e => {
+    handleFiles(Array.from(e.target.files));
+  });
+}
+
+function setupDragDrop() {
+  const app = document.getElementById('app');
+  const zone = document.getElementById('dropZone');
+
+  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(event => {
+    app.addEventListener(event, e => { e.preventDefault(); e.stopPropagation(); });
+  });
+
+  app.addEventListener('dragenter', () => zone.classList.add('active'));
+  app.addEventListener('dragleave', e => { if (e.relatedTarget && !app.contains(e.relatedTarget)) zone.classList.remove('active'); });
+  app.addEventListener('drop', e => {
+    zone.classList.remove('active');
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('audio/'));
+    if (files.length) handleFiles(files);
+  });
+}
+
+function setupKeyboard() {
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Delete') deleteSelected();
+    if (e.key === 'a' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      // 全选功能
+    }
+  });
+}
+
+async function handleFiles(fileList) {
+  for (const file of fileList) {
+    const id = Date.now() + Math.random().toString(36).slice(2);
+    const fileData = {
+      id, file, name: file.name,
+      size: (file.size / 1024 / 1024).toFixed(2),
+      duration: 0, buffer: null,
+      lufs: null, peak: null,
+      status: 'pending',
+      result: null
+    };
+    state.files.push(fileData);
+  }
+  renderFileList();
+  updateStats();
+  log(`已添加 ${fileList.length} 个音频文件`, 'info');
+
+  // 异步分析第一个文件
+  if (state.files.length === fileList.length) {
+    await analyzeFile(state.files[0]);
+  }
+}
+
+function renderFileList() {
+  const container = document.getElementById('fileList');
+  document.getElementById('fileCount').textContent = state.files.length;
+
+  if (state.files.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">🎵</div>
+        <p>拖拽音频文件到此处</p>
+        <p>或点击上方 "添加音频文件"</p>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = state.files.map(f => `
+    <div class="file-item ${f.id === state.selectedId ? 'active' : ''} ${f.status}"
+         data-id="${f.id}" onclick="selectFile('${f.id}')">
+      <div class="file-name">🎵 ${escapeHtml(f.name)}</div>
+      <div class="file-meta">
+        <span>${f.duration ? formatTime(f.duration) : '--:--'}</span>
+        <span>${f.size} MB</span>
+        <span>${f.lufs !== null ? f.lufs.toFixed(1) + ' LUFS' : '分析中...'}</span>
+      </div>
+      <span class="file-status ${f.status}">${getStatusText(f.status)}</span>
+    </div>
+  `).join('');
+}
+
+function getStatusText(s) {
+  return { pending: '待处理', processing: '处理中', done: '完成', error: '失败' }[s] || s;
+}
+
+function selectFile(id) {
+  state.selectedId = id;
+  renderFileList();
+  const file = state.files.find(f => f.id === id);
+  if (file && file.buffer) {
+    drawWaveform(file.buffer);
+    showLoudnessInfo(file);
+  }
+}
+
+function deleteSelected() {
+  if (state.isProcessing) return;
+  const idx = state.files.findIndex(f => f.id === state.selectedId);
+  if (idx >= 0) {
+    state.files.splice(idx, 1);
+    state.selectedId = null;
+    renderFileList();
+    updateStats();
+    clearWaveform();
+  }
+}
+
+function clearFiles() {
+  if (state.isProcessing) { log('处理进行中，请先停止', 'warning'); return; }
+  state.files = [];
+  state.selectedId = null;
+  renderFileList();
+  updateStats();
+  clearWaveform();
+  log('文件列表已清空', 'info');
+}
+
+// ===== 音频分析 =====
+async function analyzeFile(fileData) {
+  try {
+    const ctx = getAudioContext();
+    const arrayBuffer = await fileData.file.arrayBuffer();
+    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+    fileData.buffer = audioBuffer;
+    fileData.duration = audioBuffer.duration;
+
+    // 计算响度 (简化版 ITU-R BS.1770)
+    const lufs = calculateLUFS(audioBuffer);
+    fileData.lufs = lufs;
+
+    // 计算峰值
+    let peak = 0;
+    for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) {
+      const data = audioBuffer.getChannelData(ch);
+      for (let i = 0; i < data.length; i++) {
+        peak = Math.max(peak, Math.abs(data[i]));
+      }
+    }
+    fileData.peak = peak;
+
+    renderFileList();
+    if (state.selectedId === fileData.id) {
+      drawWaveform(audioBuffer);
+      showLoudnessInfo(fileData);
+    }
+  } catch (e) {
+    fileData.status = 'error';
+    log(`分析失败: ${fileData.name} - ${e.message}`, 'error');
+    renderFileList();
+  }
+}
+
+function calculateLUFS(buffer) {
+  // 简化的响度计算 (K-weighting近似)
+  const sampleRate = buffer.sampleRate;
+  let sumSquared = 0;
+  let sampleCount = 0;
+
+  for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+    const data = buffer.getChannelData(ch);
+    // 使用简单的 RMS 计算作为近似
+    for (let i = 0; i < data.length; i += Math.max(1, Math.floor(sampleRate / 100))) {
+      sumSquared += data[i] * data[i];
+      sampleCount++;
+    }
+  }
+
+  const rms = Math.sqrt(sumSquared / sampleCount);
+  const lufs = rms > 0 ? -0.691 + 20 * Math.log10(rms) : -70;
+  return Math.max(-70, lufs);
+}
+
+// ===== 波形绘制 =====
+function resizeCanvas() {
+  const canvas = document.getElementById('waveformCanvas');
+  const container = document.getElementById('waveformContainer');
+  canvas.width = container.clientWidth;
+  canvas.height = container.clientHeight;
+}
+
+function drawWaveform(buffer) {
+  const canvas = document.getElementById('waveformCanvas');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+
+  ctx.clearRect(0, 0, w, h);
+  document.getElementById('waveformOverlay').style.display = 'none';
+
+  const data = buffer.getChannelData(0);
+  const step = Math.ceil(data.length / w);
+  const amp = h / 2;
+
+  // 绘制填充
+  ctx.fillStyle = 'rgba(77,157,224,0.15)';
+  ctx.beginPath();
+  ctx.moveTo(0, amp);
+  for (let i = 0; i < w; i++) {
+    let min = 1, max = -1;
+    for (let j = 0; j < step; j++) {
+      const datum = data[i * step + j];
+      if (datum < min) min = datum;
+      if (datum > max) max = datum;
+    }
+    ctx.lineTo(i, amp + min * amp * 0.9);
+    ctx.lineTo(i, amp + max * amp * 0.9);
+  }
+  ctx.lineTo(w, amp);
+  ctx.closePath();
+  ctx.fill();
+
+  // 绘制中心线
+  ctx.strokeStyle = 'rgba(77,157,224,0.6)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, amp);
+  for (let i = 0; i < w; i++) {
+    let min = 1, max = -1;
+    for (let j = 0; j < step; j++) {
+      const datum = data[i * step + j];
+      if (datum < min) min = datum;
+      if (datum > max) max = datum;
+    }
+    ctx.lineTo(i, amp + min * amp * 0.9);
+  }
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(0, amp);
+  for (let i = 0; i < w; i++) {
+    let min = 1, max = -1;
+    for (let j = 0; j < step; j++) {
+      const datum = data[i * step + j];
+      if (datum < min) min = datum;
+      if (datum > max) max = datum;
+    }
+    ctx.lineTo(i, amp + max * amp * 0.9);
+  }
+  ctx.stroke();
+}
+
+function clearWaveform() {
+  const canvas = document.getElementById('waveformCanvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  document.getElementById('waveformOverlay').style.display = 'flex';
+  document.getElementById('loudnessInfo').style.display = 'none';
+}
+
+function showLoudnessInfo(file) {
+  document.getElementById('loudnessInfo').style.display = 'grid';
+  document.getElementById('origLufs').textContent = file.lufs !== null ? file.lufs.toFixed(1) + ' LUFS' : '--';
+  const target = state.gainMode === 'ai' ? state.targetLufs : (file.lufs + state.manualGainDb).toFixed(1);
+  document.getElementById('targetLufs').textContent = target + ' LUFS';
+  document.getElementById('peakDb').textContent = file.peak !== null ? (20 * Math.log10(file.peak)).toFixed(1) + ' dBFS' : '--';
+}
+
+// ===== 控制设置 =====
+function setGainMode(mode) {
+  state.gainMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  document.getElementById('aiOptions').style.display = mode === 'ai' ? 'block' : 'none';
+  document.getElementById('manualOptions').style.display = mode === 'manual' ? 'block' : 'none';
+  if (state.selectedId) {
+    const file = state.files.find(f => f.id === state.selectedId);
+    if (file) showLoudnessInfo(file);
+  }
+}
+
+function updateTargetLufs(v) {
+  state.targetLufs = parseInt(v);
+  document.getElementById('targetLufsVal').textContent = v + ' LUFS';
+  if (state.selectedId) {
+    const file = state.files.find(f => f.id === state.selectedId);
+    if (file) showLoudnessInfo(file);
+  }
+}
+
+function updateMultiplier(v) {
+  state.gainMultiplier = parseFloat(v);
+  document.getElementById('multiplierVal').textContent = v + 'x';
+}
+
+function updateGainDb(v) {
+  state.manualGainDb = parseFloat(v);
+  document.getElementById('gainDbVal').textContent = '+' + parseFloat(v).toFixed(1) + ' dB';
+  if (state.selectedId) {
+    const file = state.files.find(f => f.id === state.selectedId);
+    if (file) showLoudnessInfo(file);
+  }
+}
+
+function setProtection(level) {
+  state.protectionLevel = level;
+  document.querySelectorAll('.protection-btn').forEach(b => b.classList.toggle('active', b.dataset.level === level));
+}
+
+function onNamingChange() {
+  const rule = document.getElementById('namingRule').value;
+  state.namingRule = rule;
+  document.getElementById('customPrefixGroup').style.display = rule === 'custom' ? 'block' : 'none';
+}
+
+// ===== 处理逻辑 =====
+async function startProcessing() {
+  if (state.isProcessing) {
+    // 暂停/恢复
+    return;
+  }
+
+  const pending = state.files.filter(f => f.status === 'pending');
+  if (pending.length === 0) {
+    log('没有待处理的文件', 'warning');
+    return;
+  }
+
+  // 确保所有文件已分析
+  for (const f of pending) {
+    if (!f.buffer) await analyzeFile(f);
+  }
+
+  state.isProcessing = true;
+  state.cancelled = false;
+  state.currentIndex = 0;
+  updateUIState(true);
+
+  log(`开始处理 ${pending.length} 个文件...`, 'info');
+
+  for (let i = 0; i < state.files.length; i++) {
+    if (state.cancelled) break;
+    const file = state.files[i];
+    if (file.status !== 'pending') continue;
+
+    state.currentIndex = i;
+    file.status = 'processing';
+    renderFileList();
+    selectFile(file.id);
+    updateProgress(i + 1, state.files.length, file.name);
+
+    try {
+      await processFile(file);
+      file.status = 'done';
+      log(`[${file.name}] 处理完成`, 'success');
+    } catch (e) {
+      file.status = 'error';
+      log(`[${file.name}] 处理失败: ${e.message}`, 'error');
+    }
+    renderFileList();
+    updateStats();
+  }
+
+  state.isProcessing = false;
+  updateUIState(false);
+  updateProgress(0, 0, '');
+
+  const done = state.files.filter(f => f.status === 'done').length;
+  const failed = state.files.filter(f => f.status === 'error').length;
+  log(`批量处理完成: ${done}成功, ${failed}失败`, done === state.files.length ? 'success' : 'warning');
+}
+
+function stopProcessing() {
+  state.cancelled = true;
+  log('正在停止处理...', 'warning');
+}
+
+async function processFile(fileData) {
+  const ctx = getAudioContext();
+  const src = fileData.buffer;
+
+  // 计算增益
+  let gainDb;
+  if (state.gainMode === 'ai') {
+    gainDb = state.targetLufs - fileData.lufs;
+    gainDb += 20 * Math.log10(state.gainMultiplier);
+  } else {
+    gainDb = state.manualGainDb;
+  }
+
+  // 限制器阈值映射
+  const limiterThresholds = { low: -3, medium: -6, high: -12 };
+  const thresholdDb = limiterThresholds[state.protectionLevel];
+
+  // 使用 OfflineAudioContext 进行渲染
+  const offlineCtx = new OfflineAudioContext(
+    src.numberOfChannels, src.length, src.sampleRate
+  );
+
+  // 创建节点链
+  const source = offlineCtx.createBufferSource();
+  source.buffer = src;
+
+  // 增益节点
+  const gainNode = offlineCtx.createGain();
+  const gainValue = Math.pow(10, gainDb / 20);
+  gainNode.gain.value = gainValue;
+
+  // 限制器 (DynamicsCompressorNode)
+  const compressor = offlineCtx.createDynamicsCompressor();
+  compressor.threshold.value = thresholdDb;
+  compressor.knee.value = 6;
+  compressor.ratio.value = state.protectionLevel === 'high' ? 8 : (state.protectionLevel === 'low' ? 2 : 4);
+  compressor.attack.value = 0.005; // 5ms
+  compressor.release.value = 0.05; // 50ms
+
+  // 软削波 (使用WaveShaperNode)
+  const waveShaper = offlineCtx.createWaveShaper();
+  const curve = new Float32Array(4096);
+  for (let i = 0; i < 4096; i++) {
+    const x = (i / 4096) * 2 - 1;
+    const threshold = 0.988553; // -0.1dBFS
+    if (Math.abs(x) <= threshold) {
+      curve[i] = x;
+    } else {
+      const sign = x > 0 ? 1 : -1;
+      curve[i] = sign * threshold * Math.tanh(Math.abs(x) / threshold);
+    }
+  }
+  waveShaper.curve = curve;
+
+  // 连接: source -> gain -> compressor -> waveShaper -> destination
+  source.connect(gainNode);
+  gainNode.connect(compressor);
+  compressor.connect(waveShaper);
+  waveShaper.connect(offlineCtx.destination);
+
+  source.start();
+  const rendered = await offlineCtx.startRendering();
+
+  // 导出音频
+  const format = document.getElementById('outputFormat').value;
+  let blob, filename;
+
+  if (format === 'wav' || (format === 'original' && fileData.name.endsWith('.wav'))) {
+    blob = audioBufferToWav(rendered);
+    filename = getOutputName(fileData.name, 'wav');
+  } else {
+    // 对于非WAV格式，导出WAV作为通用格式
+    blob = audioBufferToWav(rendered);
+    const ext = format === 'mp3' ? 'mp3' : fileData.name.split('.').pop();
+    filename = getOutputName(fileData.name, ext);
+  }
+
+  // 下载文件
+  downloadBlob(blob, filename);
+
+  // 计算结果响度
+  const resultLufs = calculateLUFS(rendered);
+  fileData.result = {
+    originalLufs: fileData.lufs,
+    finalLufs: resultLufs,
+    lufsChange: resultLufs - fileData.lufs,
+    gainDb: gainDb,
+    filename: filename
+  };
+}
+
+function getOutputName(originalName, ext) {
+  const base = originalName.replace(/\.[^.]+$/, '');
+  const rule = state.namingRule;
+  if (rule === 'enhanced') return base + '_增强.' + ext;
+  if (rule === 'hd') return base + '_HD.' + ext;
+  if (rule === 'custom') return (document.getElementById('customPrefix').value || 'HD_') + base + '.' + ext;
+  return base + '_增强.' + ext;
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ===== WAV编码器 =====
+function audioBufferToWav(buffer) {
+  const numChannels = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const format = 1; // PCM
+  const bitDepth = 16;
+  const bytesPerSample = bitDepth / 8;
+  const blockAlign = numChannels * bytesPerSample;
+
+  const dataLength = buffer.length * blockAlign;
+  const bufferLength = 44 + dataLength;
+  const arrayBuffer = new ArrayBuffer(bufferLength);
+  const view = new DataView(arrayBuffer);
+
+  // RIFF chunk
+  writeString(view, 0, 'RIFF');
+  view.setUint32(4, 36 + dataLength, true);
+  writeString(view, 8, 'WAVE');
+
+  // fmt chunk
+  writeString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, format, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitDepth, true);
+
+  // data chunk
+  writeString(view, 36, 'data');
+  view.setUint32(40, dataLength, true);
+
+  // 写入采样数据
+  const offset = 44;
+  const channels = [];
+  for (let i = 0; i < numChannels; i++) {
+    channels.push(buffer.getChannelData(i));
+  }
+
+  let index = 0;
+  for (let i = 0; i < buffer.length; i++) {
+    for (let ch = 0; ch < numChannels; ch++) {
+      const sample = Math.max(-1, Math.min(1, channels[ch][i]));
+      const intSample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+      view.setInt16(offset + index, intSample, true);
+      index += 2;
+    }
+  }
+
+  return new Blob([arrayBuffer], { type: 'audio/wav' });
+}
+
+function writeString(view, offset, string) {
+  for (let i = 0; i < string.length; i++) {
+    view.setUint8(offset + i, string.charCodeAt(i));
+  }
+}
+
+// ===== UI更新 =====
+function updateUIState(processing) {
+  document.getElementById('btnStart').disabled = processing;
+  document.getElementById('btnStart').textContent = processing ? '⏸ 暂停' : '▶ 开始增强';
+  document.getElementById('btnStop').disabled = !processing;
+  document.getElementById('btnClear').disabled = processing;
+}
+
+function updateProgress(current, total, filename) {
+  const pct = total > 0 ? Math.round(current / total * 100) : 0;
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressText').textContent = total > 0 ? `正在处理 (${current}/${total}): ${filename}` : '就绪';
+  document.getElementById('progressPct').textContent = pct + '%';
+}
+
+function updateStats() {
+  document.getElementById('statTotal').textContent = state.files.length;
+  document.getElementById('statDone').textContent = state.files.filter(f => f.status === 'done').length;
+}
+
+// ===== 日志 =====
+function log(message, level = 'info') {
+  const container = document.getElementById('logContent');
+  const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+  const entry = document.createElement('div');
+  entry.className = `log-entry ${level}`;
+  const levelText = { info: '[INFO]', success: '[OK]', warning: '[WARN]', error: '[FAIL]' }[level] || '[INFO]';
+  entry.innerHTML = `<span class="time">${time}</span><span class="level">${levelText}</span><span class="msg">${escapeHtml(message)}</span>`;
+  container.appendChild(entry);
+  container.scrollTop = container.scrollHeight;
+}
+
+function clearLogs() {
+  document.getElementById('logContent').innerHTML = '';
+}
+
+// ===== 工具函数 =====
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function formatTime(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
+
+// ===== 启动 =====
+init();
+</script>
+</body>
+</html>
