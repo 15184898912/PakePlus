@@ -1503,19 +1503,77 @@ async function toastDownloadZip() {
   }
 }
 
-// 选择文件夹保存：只弹一次文件夹选择器，所有文件写入该文件夹
+// 选择文件夹保存：优先使用 Tauri/Electron 原生对话框，避免浏览器权限弹窗
 async function toastSaveToFolder() {
   hideToast();
   const doneFiles = state.files.filter(f => f.status === 'done' && f.result && f.result.blob);
   if (doneFiles.length === 0) return;
 
-  // 检测 showDirectoryPicker 支持
-  if ('showDirectoryPicker' in window) {
+  // 1. Tauri 环境：使用原生 tauri-api 打开文件夹选择
+  if (window.__TAURI__) {
+    try {
+      log(`请选择保存文件夹（${doneFiles.length} 个文件将写入该文件夹）`, 'info');
+      const { save } = await import('https://cdn.jsdelivr.net/npm/@tauri-apps/api/fs/+esm');
+      const { open } = await import('https://cdn.jsdelivr.net/npm/@tauri-apps/api/dialog/+esm');
+
+      const selectedPath = await open({ directory: true, title: '选择保存位置' });
+      if (!selectedPath) { log('已取消文件夹选择', 'info'); return; }
+
+      let saved = 0;
+      for (const file of doneFiles) {
+        const filePath = selectedPath + '/' + file.result.filename;
+        try {
+          const blob = file.result.blob;
+          const buffer = await blob.arrayBuffer();
+          await save(filePath, new Uint8Array(buffer));
+          saved++;
+          log(`已保存: ${file.result.filename}`, 'success');
+        } catch (e) {
+          log(`保存失败: ${file.result.filename} - ${e.message}`, 'error');
+        }
+      }
+      doneFiles.forEach(f => f.status = 'saved');
+      renderFileList();
+      log(`文件夹保存完成: ${saved}/${doneFiles.length} 个文件`, saved === doneFiles.length ? 'success' : 'warning');
+    } catch (e) {
+      log(`Tauri 保存失败: ${e.message}，尝试 ZIP 打包下载...`, 'warning');
+      await toastDownloadZip();
+    }
+    return;
+  }
+
+  // 2. Electron 环境：使用原生 ipcRenderer
+  if (window.electronAPI && window.electronAPI.selectFolder) {
+    try {
+      const folderPath = await window.electronAPI.selectFolder();
+      if (!folderPath) { log('已取消文件夹选择', 'info'); return; }
+      let saved = 0;
+      for (const file of doneFiles) {
+        try {
+          const buffer = await file.result.blob.arrayBuffer();
+          await window.electronAPI.saveFile(folderPath, file.result.filename, new Uint8Array(buffer));
+          saved++;
+          log(`已保存: ${file.result.filename}`, 'success');
+        } catch (e) {
+          log(`保存失败: ${file.result.filename} - ${e.message}`, 'error');
+        }
+      }
+      doneFiles.forEach(f => f.status = 'saved');
+      renderFileList();
+      log(`文件夹保存完成: ${saved}/${doneFiles.length} 个文件`, saved === doneFiles.length ? 'success' : 'warning');
+    } catch (e) {
+      log(`Electron 保存失败: ${e.message}，尝试 ZIP 打包下载...`, 'warning');
+      await toastDownloadZip();
+    }
+    return;
+  }
+
+  // 3. 浏览器环境：仅在 HTTPS 下使用 showDirectoryPicker，否则降级 ZIP
+  if ('showDirectoryPicker' in window && window.isSecureContext) {
     try {
       log(`请选择保存文件夹（${doneFiles.length} 个文件将写入该文件夹）`, 'info');
       const dirHandle = await window.showDirectoryPicker();
       let saved = 0;
-
       for (const file of doneFiles) {
         try {
           const fileHandle = await dirHandle.getFileHandle(file.result.filename, { create: true });
@@ -1528,7 +1586,6 @@ async function toastSaveToFolder() {
           log(`保存失败: ${file.result.filename} - ${e.message}`, 'error');
         }
       }
-
       doneFiles.forEach(f => f.status = 'saved');
       renderFileList();
       log(`文件夹保存完成: ${saved}/${doneFiles.length} 个文件`, saved === doneFiles.length ? 'success' : 'warning');
@@ -1541,8 +1598,7 @@ async function toastSaveToFolder() {
       }
     }
   } else {
-    // 不支持 showDirectoryPicker，降级 ZIP
-    log('当前浏览器不支持选择文件夹保存，已自动切换为 ZIP 打包下载', 'warning');
+    log('当前环境不支持选择文件夹保存，已自动切换为 ZIP 打包下载', 'warning');
     await toastDownloadZip();
   }
 }
