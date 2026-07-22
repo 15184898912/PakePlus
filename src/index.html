@@ -133,6 +133,26 @@ body::before {
   font-size: 14px; font-weight: 700; color: var(--accent);
   display: flex; align-items: center; gap: 8px;
 }
+.panel-header.clickable {
+  cursor: pointer; user-select: none; transition: background 0.2s;
+}
+.panel-header.clickable:hover {
+  background: rgba(77,157,224,0.08);
+}
+.panel-header .collapse-icon {
+  margin-left: auto; font-size: 11px; color: var(--muted);
+  transition: transform 0.25s ease;
+}
+.panel-header .collapse-icon.collapsed {
+  transform: rotate(-90deg);
+}
+.panel-body {
+  overflow: hidden; transition: max-height 0.3s ease, opacity 0.3s ease;
+  max-height: 2000px; opacity: 1;
+}
+.panel-body.collapsed {
+  max-height: 0; opacity: 0;
+}
 
 /* ===== 左侧文件列表 ===== */
 .file-panel { width: 360px; min-width: 280px; }
@@ -155,7 +175,17 @@ body::before {
 .file-item.error { border-color: var(--error); }
 
 .file-name { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
-.file-meta { font-size: 11px; color: var(--muted); display: flex; gap: 12px; }
+.file-play-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: rgba(77,157,224,0.15); border: 1px solid rgba(77,157,224,0.3);
+  color: var(--accent); cursor: pointer; font-size: 10px;
+  transition: all 0.2s; flex-shrink: 0; position: relative; z-index: 2;
+}
+.file-play-btn:hover { background: rgba(77,157,224,0.3); border-color: var(--accent); transform: scale(1.1); }
+.file-play-btn.playing { background: var(--accent); border-color: var(--accent2); color: #fff; animation: pulse-play 1.2s infinite; }
+@keyframes pulse-play { 0%,100% { box-shadow: 0 0 0 0 rgba(77,157,224,0.4); } 50% { box-shadow: 0 0 0 6px rgba(77,157,224,0); } }
+.file-meta { font-size: 11px; color: var(--muted); display: flex; gap: 12px; padding-left: 32px; }
 .file-status { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-size: 11px; padding: 2px 8px; border-radius: 4px; }
 .file-status.pending { background: rgba(139,146,168,0.15); color: var(--muted); }
 .file-status.processing { background: rgba(240,173,78,0.15); color: var(--warning); }
@@ -191,6 +221,44 @@ body::before {
 .waveform-overlay {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   color: var(--muted); font-size: 12px; pointer-events: none;
+}
+/* 播放控制条 */
+.playback-controls {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; margin-top: 8px;
+  background: var(--bg3); border-radius: 8px; border: 1px solid var(--rule);
+}
+.playback-controls .btn-sm {
+  padding: 6px 10px; border-radius: 6px; border: 1px solid var(--rule);
+  background: var(--bg3); color: var(--ink); cursor: pointer;
+  font-size: 12px; transition: all 0.15s; display: flex; align-items: center; gap: 4px;
+}
+.playback-controls .btn-sm:hover { border-color: var(--accent); background: rgba(77,157,224,0.1); }
+.playback-controls .btn-sm.play-btn {
+  width: 34px; height: 34px; border-radius: 50%; padding: 0;
+  justify-content: center; font-size: 14px;
+  background: rgba(77,157,224,0.15); border-color: var(--accent);
+}
+.playback-controls .btn-sm.play-btn:hover { background: var(--accent); color: #fff; }
+.playback-seek {
+  flex: 1; height: 4px; background: var(--bg); border-radius: 2px;
+  cursor: pointer; position: relative;
+}
+.playback-seek-fill {
+  height: 100%; background: var(--accent); border-radius: 2px;
+  width: 0%; transition: width 0.1s linear;
+}
+.playback-time { font-size: 11px; color: var(--muted); min-width: 85px; text-align: center; font-family: monospace; }
+.playback-volume {
+  width: 60px; height: 4px; background: var(--bg); border-radius: 2px;
+  cursor: pointer; position: relative;
+}
+.playback-volume-fill { height: 100%; background: var(--accent2); border-radius: 2px; width: 80%; }
+/* 播放位置指示线 */
+.playback-pos-line {
+  position: absolute; top: 0; width: 2px; height: 100%;
+  background: var(--accent2); pointer-events: none; display: none;
+  box-shadow: 0 0 8px rgba(59,208,238,0.5);
 }
 
 /* 增益模式 */
@@ -362,7 +430,7 @@ select option { background: var(--bg2); color: var(--ink); }
   <button class="btn btn-start" onclick="startProcessing()" id="btnStart" title="开始批量增强">
     ▶ 开始增强
   </button>
-  <button class="btn btn-stop" onclick="stopProcessing()" id="btnStop" disabled title="停止处理">■ 停止</button>
+  <button class="btn btn-stop" onclick="stopProcessing()" id="btnStop" title="停止处理/播放">■ 停止</button>
 </div>
 
 <!-- 进度条 -->
@@ -399,6 +467,19 @@ select option { background: var(--bg2); color: var(--ink); }
       <div class="waveform-container" id="waveformContainer">
         <canvas id="waveformCanvas"></canvas>
         <div class="waveform-overlay" id="waveformOverlay">选择音频文件查看波形</div>
+        <div class="playback-pos-line" id="playbackPosLine"></div>
+      </div>
+      <!-- 播放控制条 -->
+      <div class="playback-controls" id="playbackControls">
+        <button class="btn-sm play-btn" id="btnPlay" onclick="togglePlayback()" title="播放/暂停 (空格键)">▶</button>
+        <span class="playback-time" id="playbackTime">00:00 / 00:00</span>
+        <div class="playback-seek" id="playbackSeek" onclick="seekPlayback(event)" title="拖动调整播放位置">
+          <div class="playback-seek-fill" id="playbackSeekFill"></div>
+        </div>
+        <button class="btn-sm" onclick="togglePlayback()" title="停止">⏹</button>
+        <div class="playback-volume" id="playbackVolume" onclick="setVolume(event)" title="音量">
+          <div class="playback-volume-fill" id="playbackVolumeFill"></div>
+        </div>
       </div>
       <div class="loudness-info" id="loudnessInfo" style="display:none">
         <div class="loudness-card"><div class="label">原始响度</div><div class="value" id="origLufs">--</div></div>
@@ -455,7 +536,8 @@ select option { background: var(--bg2); color: var(--ink); }
 
   <!-- 右侧输出设置 -->
   <div class="panel output-panel">
-    <div class="panel-header">📤 输出设置</div>
+    <div class="panel-header clickable" onclick="togglePanel('outputBody', this)">📤 输出设置 <span class="collapse-icon">▼</span></div>
+    <div class="panel-body" id="outputBody">
     <div style="padding:16px">
       <div class="input-group">
         <label>文件命名规则</label>
@@ -485,6 +567,7 @@ select option { background: var(--bg2); color: var(--ink); }
           • 浏览器端纯本地处理
         </div>
       </div>
+    </div>
     </div>
   </div>
 
@@ -519,7 +602,15 @@ const state = {
   outputFormat: 'original',
   namingRule: 'enhanced',
   customPrefix: 'HD_',
-  audioCtx: null
+  audioCtx: null,
+  // 播放状态
+  playingId: null,
+  playSource: null,
+  playGain: null,
+  playStartTime: 0,
+  playPauseOffset: 0,
+  playVolume: 0.8,
+  playRafId: null
 };
 
 let animationId = null;
@@ -529,6 +620,7 @@ function init() {
   setupDragDrop();
   setupFileInput();
   setupKeyboard();
+  setupKeyboardShortcuts();
   resizeCanvas();
   window.addEventListener('resize', resizeCanvas);
   log('系统初始化完成', 'info');
@@ -616,7 +708,10 @@ function renderFileList() {
   container.innerHTML = state.files.map(f => `
     <div class="file-item ${f.id === state.selectedId ? 'active' : ''} ${f.status}"
          data-id="${f.id}" onclick="selectFile('${f.id}')">
-      <div class="file-name">🎵 ${escapeHtml(f.name)}</div>
+      <div class="file-name">
+        <span class="file-play-btn ${f.id === state.playingId ? 'playing' : ''}" onclick="event.stopPropagation();togglePlayFromList('${f.id}')" title="试听/暂停">${f.id === state.playingId ? '⏸' : '▶'}</span>
+        🎵 ${escapeHtml(f.name)}
+      </div>
       <div class="file-meta">
         <span>${f.duration ? formatTime(f.duration) : '--:--'}</span>
         <span>${f.size} MB</span>
@@ -638,11 +733,16 @@ function selectFile(id) {
   if (file && file.buffer) {
     drawWaveform(file.buffer);
     showLoudnessInfo(file);
+    document.getElementById('playbackTime').textContent = '00:00 / ' + formatTime(file.duration);
+  }
+  if (state.playingId && state.playingId !== id) {
+    stopPlayback();
   }
 }
 
 function deleteSelected() {
   if (state.isProcessing) return;
+  if (state.playingId === state.selectedId) stopPlayback();
   const idx = state.files.findIndex(f => f.id === state.selectedId);
   if (idx >= 0) {
     state.files.splice(idx, 1);
@@ -655,6 +755,7 @@ function deleteSelected() {
 
 function clearFiles() {
   if (state.isProcessing) { log('处理进行中，请先停止', 'warning'); return; }
+  stopPlayback();
   state.files = [];
   state.selectedId = null;
   renderFileList();
@@ -802,6 +903,164 @@ function showLoudnessInfo(file) {
   document.getElementById('peakDb').textContent = file.peak !== null ? (20 * Math.log10(file.peak)).toFixed(1) + ' dBFS' : '--';
 }
 
+// ===== 播放试听功能 =====
+function togglePlayFromList(id) {
+  const file = state.files.find(f => f.id === id);
+  if (!file) return;
+  if (state.playingId === id) {
+    stopPlayback();
+  } else {
+    selectFile(id);
+    startPlayback(file);
+  }
+}
+
+function togglePlayback() {
+  if (state.playingId) {
+    pausePlayback();
+  } else {
+    const file = state.files.find(f => f.id === state.selectedId);
+    if (file && file.buffer) startPlayback(file);
+  }
+}
+
+function startPlayback(file) {
+  if (!file.buffer) return;
+  stopPlayback();
+
+  const ctx = getAudioContext();
+  if (ctx.state === 'suspended') ctx.resume();
+
+  const source = ctx.createBufferSource();
+  source.buffer = file.buffer;
+
+  const gainNode = ctx.createGain();
+  gainNode.gain.value = state.playVolume;
+
+  source.connect(gainNode);
+  gainNode.connect(ctx.destination);
+
+  source.start(0, state.playPauseOffset);
+  state.playingId = file.id;
+  state.playSource = source;
+  state.playGain = gainNode;
+  state.playStartTime = ctx.currentTime - state.playPauseOffset;
+
+  document.getElementById('btnPlay').textContent = '⏸';
+  document.getElementById('playbackPosLine').style.display = 'block';
+
+  source.onended = () => {
+    if (state.playingId === file.id) {
+      stopPlayback();
+    }
+  };
+
+  updatePlaybackPosition();
+  renderFileList();
+}
+
+function pausePlayback() {
+  if (!state.playingId) return;
+  const ctx = getAudioContext();
+  state.playPauseOffset = ctx.currentTime - state.playStartTime;
+  stopPlayback();
+}
+
+function stopPlayback() {
+  if (state.playSource) {
+    try { state.playSource.stop(); } catch(e) {}
+    state.playSource.onended = null;
+  }
+  state.playSource = null;
+  state.playGain = null;
+  state.playingId = null;
+  state.playStartTime = 0;
+  state.playPauseOffset = 0;
+
+  if (state.playRafId) {
+    cancelAnimationFrame(state.playRafId);
+    state.playRafId = null;
+  }
+
+  document.getElementById('btnPlay').textContent = '▶';
+  document.getElementById('playbackPosLine').style.display = 'none';
+  document.getElementById('playbackSeekFill').style.width = '0%';
+  document.getElementById('playbackTime').textContent = '00:00 / 00:00';
+  renderFileList();
+}
+
+function updatePlaybackPosition() {
+  if (!state.playingId) return;
+
+  const file = state.files.find(f => f.id === state.playingId);
+  if (!file || !file.duration) { state.playRafId = requestAnimationFrame(updatePlaybackPosition); return; }
+
+  const ctx = getAudioContext();
+  const elapsed = ctx.currentTime - state.playStartTime;
+  const pct = Math.min(elapsed / file.duration * 100, 100);
+
+  document.getElementById('playbackSeekFill').style.width = pct + '%';
+  document.getElementById('playbackPosLine').style.left = pct + '%';
+  document.getElementById('playbackTime').textContent = formatTime(elapsed) + ' / ' + formatTime(file.duration);
+
+  if (elapsed < file.duration) {
+    state.playRafId = requestAnimationFrame(updatePlaybackPosition);
+  }
+}
+
+function seekPlayback(event) {
+  if (!state.playingId) return;
+  const file = state.files.find(f => f.id === state.playingId);
+  if (!file) return;
+
+  const seekBar = document.getElementById('playbackSeek');
+  const rect = seekBar.getBoundingClientRect();
+  const pct = (event.clientX - rect.left) / rect.width;
+  const seekTime = pct * file.duration;
+
+  const ctx = getAudioContext();
+  state.playPauseOffset = seekTime;
+
+  // 重建播放
+  if (state.playSource) {
+    try { state.playSource.stop(); } catch(e) {}
+  }
+  const source = ctx.createBufferSource();
+  source.buffer = file.buffer;
+  const gainNode = ctx.createGain();
+  gainNode.gain.value = state.playVolume;
+  source.connect(gainNode);
+  gainNode.connect(ctx.destination);
+  source.start(0, seekTime);
+  state.playSource = source;
+  state.playGain = gainNode;
+  state.playStartTime = ctx.currentTime - seekTime;
+  source.onended = () => {
+    if (state.playingId === file.id) stopPlayback();
+  };
+}
+
+function setVolume(event) {
+  const volBar = document.getElementById('playbackVolume');
+  const rect = volBar.getBoundingClientRect();
+  const vol = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+  state.playVolume = vol;
+  document.getElementById('playbackVolumeFill').style.width = (vol * 100) + '%';
+  if (state.playGain) {
+    state.playGain.gain.value = vol;
+  }
+}
+
+function setupKeyboardShortcuts() {
+  document.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.code === 'Space') {
+      e.preventDefault();
+      togglePlayback();
+    }
+  });
+}
+
 // ===== 控制设置 =====
 function setGainMode(mode) {
   state.gainMode = mode;
@@ -906,8 +1165,16 @@ async function startProcessing() {
 }
 
 function stopProcessing() {
-  state.cancelled = true;
-  log('正在停止处理...', 'warning');
+  // 停止播放
+  if (state.playingId) {
+    stopPlayback();
+    log('已停止播放', 'info');
+  }
+  // 停止批量处理
+  if (state.isProcessing) {
+    state.cancelled = true;
+    log('正在停止处理...', 'warning');
+  }
 }
 
 async function processFile(fileData) {
@@ -1084,7 +1351,7 @@ function writeString(view, offset, string) {
 function updateUIState(processing) {
   document.getElementById('btnStart').disabled = processing;
   document.getElementById('btnStart').textContent = processing ? '⏸ 暂停' : '▶ 开始增强';
-  document.getElementById('btnStop').disabled = !processing;
+  document.getElementById('btnStop').disabled = false;
   document.getElementById('btnClear').disabled = processing;
 }
 
@@ -1114,6 +1381,14 @@ function log(message, level = 'info') {
 
 function clearLogs() {
   document.getElementById('logContent').innerHTML = '';
+}
+
+function togglePanel(bodyId, headerEl) {
+  const body = document.getElementById(bodyId);
+  const icon = headerEl.querySelector('.collapse-icon');
+  if (!body) return;
+  body.classList.toggle('collapsed');
+  if (icon) icon.classList.toggle('collapsed');
 }
 
 // ===== 工具函数 =====
