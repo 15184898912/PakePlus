@@ -613,7 +613,7 @@
   try {
     const client = await import('/@vite/client');
     const hmr = client.createHotContext('hmr-handler/fake.js');
-    hmr.on('vite:afterUpdate', window['__ICUBE_WEBVIEW_HMR_CALLBACK_1784814026880']);
+    hmr.on('vite:afterUpdate', window['__ICUBE_WEBVIEW_HMR_CALLBACK_1784817103157']);
   } catch {}
 })();</script><style>.buttonsCard-bTXa5j {
   padding: var(--spacer-4);
@@ -970,7 +970,7 @@
   try {
     const client = await import('/@vite/client');
     const hmr = client.createHotContext('hmr-handler/fake.js');
-    hmr.on('vite:afterUpdate', window['__ICUBE_WEBVIEW_HMR_CALLBACK_1784814026902']);
+    hmr.on('vite:afterUpdate', window['__ICUBE_WEBVIEW_HMR_CALLBACK_1784817103176']);
   } catch {}
 })();</script><style>.buttonsCard-bTXa5j {
   padding: var(--spacer-4);
@@ -3077,11 +3077,13 @@
         <div class="file-header-cell">参数</div>
         <div class="file-header-cell">变换速度</div>
       </div>
-      <div class="file-list-container" id="fileListContainer"><div class="empty-state">
-        <div class="icon">📂</div>
-        <div class="text">拖拽音频文件到此处，或点击"添加文件"按钮</div>
-        <div class="hint">支持 MP3, WAV, FLAC, OGG, M4A, AAC 等格式</div>
-      </div></div>
+      <div class="file-list-container" id="fileListContainer">
+        <div class="empty-state" id="emptyState">
+          <div class="icon">📂</div>
+          <div class="text">拖拽音频文件到此处，或点击"添加文件"按钮</div>
+          <div class="hint">支持 MP3, WAV, FLAC, OGG, M4A, AAC 等格式</div>
+        </div>
+      </div>
     </div>
 
     <!-- 右侧控制面板 -->
@@ -3093,7 +3095,7 @@
         <div class="slider-group">
           <div class="slider-label">
             <span class="name">节奏设置 (Tempo)</span>
-            <span class="value" id="tempoValue">+30%</span>
+            <span class="value" id="tempoValue">0%</span>
           </div>
           <div class="slider-wrapper">
             <input type="range" id="tempoSlider" min="-50" max="100" value="0" step="1" oninput="onSliderChange()">
@@ -3104,7 +3106,7 @@
         <div class="slider-group">
           <div class="slider-label">
             <span class="name">音调设置 (Pitch)</span>
-            <span class="value" id="pitchValue">-3</span>
+            <span class="value" id="pitchValue">0</span>
           </div>
           <div class="slider-wrapper">
             <input type="range" id="pitchSlider" min="-12" max="12" value="0" step="1" oninput="onSliderChange()">
@@ -3115,7 +3117,7 @@
         <div class="slider-group">
           <div class="slider-label">
             <span class="name">播放速度 (Playback Rate)</span>
-            <span class="value" id="rateValue">+0%</span>
+            <span class="value" id="rateValue">0%</span>
           </div>
           <div class="slider-wrapper">
             <input type="range" id="rateSlider" min="-70" max="200" value="0" step="1" oninput="onSliderChange()">
@@ -3132,15 +3134,15 @@
           <button class="ctrl-btn reset" onclick="resetSliders()">重置</button>
         </div>
         <!-- 预览状态行 -->
-        <div class="preview-status" id="previewStatus">预览: 0:00/4:21 (0%)</div>
+        <div class="preview-status" id="previewStatus">预览: 0:00/0:00 (0%)</div>
         <!-- 进度条 -->
         <div class="progress-bar-full" id="progressBar" onclick="seekAudio(event)">
-          <div class="progress-fill" id="progressFill" style="width: 0%;"></div>
+          <div class="progress-fill" id="progressFill"></div>
         </div>
         <!-- 播放控制行 -->
         <div class="player-controls-row">
-          <button class="play-btn" id="playBtn" onclick="togglePlay()">▶ 播放</button>
-          <button class="stop-btn" id="stopBtn" onclick="stopPlay()">■ 停止</button>
+          <button class="play-btn" id="playBtn" onclick="togglePlay()" disabled="">▶ 播放</button>
+          <button class="stop-btn" id="stopBtn" onclick="stopPlay()" disabled="">■ 停止</button>
           <div class="volume-area">
             <span class="volume-label-text">音量：</span>
             <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="80" oninput="onVolumeChange()">
@@ -3153,7 +3155,7 @@
 
   <!-- 状态栏 -->
   <div class="statusbar">
-    <div class="status-msg" id="statusMsg">列表已清空</div>
+    <div class="status-msg" id="statusMsg">就绪 - 请添加音频文件</div>
     <div class="status-progress" id="statusProgress">
       <div class="status-progress-fill" id="statusProgressFill"></div>
     </div>
@@ -3206,6 +3208,33 @@
      *  纯静态HTML + Web Audio API
      * ============================================================ */
 
+    // ---- 全局错误捕获（EXE 环境中尤为重要，帮助定位转换失败原因）----
+    window.addEventListener('error', function(e) {
+      console.error('[全局错误]', e.message, e.filename, e.lineno, e.colno, e.error);
+      // 如果有 toast 容器，显示错误
+      const c = document.getElementById('toastContainer');
+      if (c) {
+        const t = document.createElement('div');
+        t.className = 'toast error';
+        t.innerHTML = '<span>❌</span><span>错误: ' + (e.message || '未知错误') + ' (行:' + e.lineno + ')</span>';
+        c.appendChild(t);
+        setTimeout(() => { t.classList.add('removing'); setTimeout(() => t.remove(), 300); }, 5000);
+      }
+    });
+    window.addEventListener('unhandledrejection', function(e) {
+      const reason = e.reason;
+      const msg = reason && reason.message ? reason.message : String(reason);
+      console.error('[未处理的Promise拒绝]', msg, reason);
+      const c = document.getElementById('toastContainer');
+      if (c) {
+        const t = document.createElement('div');
+        t.className = 'toast error';
+        t.innerHTML = '<span>❌</span><span>处理错误: ' + msg + '</span>';
+        c.appendChild(t);
+        setTimeout(() => { t.classList.add('removing'); setTimeout(() => t.remove(), 300); }, 5000);
+      }
+    });
+
     // ---- 全局状态 ----
     const state = {
       files: [],           // { id, name, path, file, info, tempo, pitch, rate, status, audioBuffer }
@@ -3242,9 +3271,95 @@
     async function ensureAudioContext() {
       const ctx = getAudioCtx();
       if (ctx.state === 'suspended') {
-        await ctx.resume();
+        try { await ctx.resume(); } catch(e) { console.warn('AudioContext resume 失败:', e); }
       }
       return ctx;
+    }
+
+    // ---- EXE/WebView 兼容性函数 ----
+
+    // 兼容性文件读取：优先使用 file.arrayBuffer()，不支持时回退到 FileReader
+    function readFileAsArrayBuffer(file) {
+      return new Promise((resolve, reject) => {
+        // 方式1：file.arrayBuffer()（现代浏览器/新版 WebView2 支持）
+        if (file && typeof file.arrayBuffer === 'function') {
+          file.arrayBuffer().then(resolve).catch((e) => {
+            console.warn('file.arrayBuffer() 失败，回退到 FileReader:', e);
+            // 回退到 FileReader
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(new Error('FileReader 读取失败'));
+            reader.readAsArrayBuffer(file);
+          });
+        } else if (typeof FileReader !== 'undefined') {
+          // 方式2：FileReader（兼容旧版 WebView）
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error('FileReader 读取失败'));
+          reader.readAsArrayBuffer(file);
+        } else {
+          reject(new Error('当前环境不支持文件读取'));
+        }
+      });
+    }
+
+    // 兼容性音频解码：同时支持 Promise 和回调形式
+    function decodeAudioDataCompat(ctx, arrayBuffer) {
+      return new Promise((resolve, reject) => {
+        let resolved = false;
+        const onSuccess = (buffer) => {
+          if (resolved) return;
+          resolved = true;
+          resolve(buffer);
+        };
+        const onError = (err) => {
+          if (resolved) return;
+          resolved = true;
+          reject(err || new Error('音频解码失败'));
+        };
+
+        try {
+          // 尝试 Promise 形式（现代浏览器）
+          const result = ctx.decodeAudioData(arrayBuffer);
+          if (result && typeof result.then === 'function') {
+            result.then(onSuccess).catch(onError);
+          } else {
+            // 旧版 WebView 使用回调形式
+            ctx.decodeAudioData(arrayBuffer, onSuccess, onError);
+          }
+        } catch (e) {
+          // 某些环境 decodeAudioData 只支持回调
+          try {
+            ctx.decodeAudioData(arrayBuffer, onSuccess, onError);
+          } catch (e2) {
+            onError(e2);
+          }
+        }
+      });
+    }
+
+    // 兼容性 createBuffer：如果 AudioContext.createBuffer 失败，使用普通数组模拟
+    function createBufferCompat(ctx, channels, length, sampleRate) {
+      try {
+        return ctx.createBuffer(channels, length, sampleRate);
+      } catch (e) {
+        console.warn('ctx.createBuffer 失败，使用 Float32Array 模拟:', e);
+        // 回退：创建一个类似 AudioBuffer 的对象
+        const buf = {
+          numberOfChannels: channels,
+          length: length,
+          sampleRate: sampleRate,
+          duration: length / sampleRate,
+          _channels: [],
+          getChannelData: function(ch) {
+            if (!this._channels[ch]) {
+              this._channels[ch] = new Float32Array(length);
+            }
+            return this._channels[ch];
+          }
+        };
+        return buf;
+      }
     }
 
     function formatTime(sec) {
@@ -3358,11 +3473,14 @@
       };
       state.files.push(entry);
 
-      // 异步读取音频信息
+      // 异步读取音频信息（使用兼容性函数）
       try {
         const ctx = getAudioCtx();
-        const arrayBuf = await file.arrayBuffer();
-        const audioBuf = await ctx.decodeAudioData(arrayBuf);
+        if (ctx.state === 'suspended') {
+          try { await ctx.resume(); } catch(e) {}
+        }
+        const arrayBuf = await readFileAsArrayBuffer(file);
+        const audioBuf = await decodeAudioDataCompat(ctx, arrayBuf);
         entry.audioBuffer = audioBuf;
         entry.info = {
           duration: audioBuf.duration,
@@ -3374,7 +3492,9 @@
         };
       } catch (err) {
         entry.status = 'error';
+        entry.errorMsg = '读取音频失败: ' + (err && err.message ? err.message : String(err));
         console.warn('读取音频失败:', file.name, err);
+        showToast(`读取失败: ${file.name} - ${entry.errorMsg}`, 'error');
       }
 
       renderFileList();
@@ -3783,6 +3903,11 @@
 
       state._previewProcessing = true;
 
+      // ★ 确保 AudioContext 可用（EXE 环境中可能 suspended）
+      if (state.audioCtx && state.audioCtx.state === 'suspended') {
+        try { await state.audioCtx.resume(); } catch(e) {}
+      }
+
       try {
         // Step 1: WSOLA 变速不变调
         const totalRate = tempo * rate;
@@ -3916,28 +4041,37 @@
 
     // ---- 音频处理核心 (Web Audio API + OLA 时间拉伸) ----
     async function processAudioBuffer(audioBuffer, tempo, pitch, playbackRate) {
+      if (!audioBuffer) throw new Error('音频数据为空');
       const ctx = getAudioCtx();
       const sr = audioBuffer.sampleRate;
       const channels = audioBuffer.numberOfChannels;
 
       // 合并 tempo 和 playbackRate 为总变速倍率
-      const totalRate = tempo * playbackRate;
+      const totalRate = Math.max(0.01, tempo * playbackRate);
 
       let workBuffer = audioBuffer;
 
-      // Step 1: 变速不变调（OLA 时间拉伸算法）
-      if (totalRate !== 1.0) {
-        workBuffer = await olaTimeStretch(audioBuffer, totalRate);
+      // Step 1: 变速不变调（WSOLA 时间拉伸算法）
+      if (Math.abs(totalRate - 1.0) > 0.001) {
+        try {
+          workBuffer = await olaTimeStretch(audioBuffer, totalRate);
+        } catch (e) {
+          throw new Error('WSOLA 变速失败: ' + (e.message || e));
+        }
       }
 
       // Step 2: 变调不变速（如果有音调调整）
       if (pitch !== 0) {
-        workBuffer = await pitchShiftPreserveDuration(workBuffer, pitch);
+        try {
+          workBuffer = await pitchShiftPreserveDuration(workBuffer, pitch);
+        } catch (e) {
+          throw new Error('变调处理失败: ' + (e.message || e));
+        }
       }
 
       // Step 3: 增益归一化（防爆音）
       let maxVal = 0;
-      for (let ch = 0; ch < channels; ch++) {
+      for (let ch = 0; ch < workBuffer.numberOfChannels; ch++) {
         const data = workBuffer.getChannelData(ch);
         for (let i = 0; i < data.length; i++) {
           const abs = Math.abs(data[i]);
@@ -3946,7 +4080,7 @@
       }
       if (maxVal > 0.95) {
         const gain = 0.95 / maxVal;
-        for (let ch = 0; ch < channels; ch++) {
+        for (let ch = 0; ch < workBuffer.numberOfChannels; ch++) {
           const data = workBuffer.getChannelData(ch);
           for (let i = 0; i < data.length; i++) {
             data[i] *= gain;
@@ -3964,7 +4098,6 @@
       const sr = audioBuffer.sampleRate;
       const channels = audioBuffer.numberOfChannels;
       const origLength = audioBuffer.length;
-      const newLength = Math.max(frameSize, Math.round(origLength / rate));
 
       // WSOLA 参数
       const frameSize = 4096;
@@ -3972,6 +4105,7 @@
       const inputHop = Math.round(frameSize / 4);        // 输入帧间距（固定）
       const outputHop = Math.max(1, Math.round(inputHop / rate)); // 输出帧间距
       const searchRange = Math.round(frameSize / 2);      // 搜索范围
+      const newLength = Math.max(frameSize, Math.round(origLength / rate));
 
       // Hann 窗
       const win = new Float32Array(frameSize);
@@ -3981,7 +4115,11 @@
 
       // 创建输出 buffer + 归一化 buffer
       const ctx = getAudioCtx();
-      const output = ctx.createBuffer(channels, newLength, sr);
+      // ★ 安全检查：确保 newLength 是有效正整数
+      if (!Number.isFinite(newLength) || newLength < 1) {
+        throw new Error('WSOLA: 无效的输出长度 (newLength=' + newLength + ', rate=' + rate + ')');
+      }
+      const output = createBufferCompat(ctx, channels, Math.floor(newLength), sr);
 
       // 使用第一声道做搜索参考（效率优化）
       const refData = audioBuffer.getChannelData(0);
@@ -3991,6 +4129,7 @@
       {
         let inputPos = 0;
         let outputPos = 0;
+        let frameCounter = 0;
         while (outputPos < newLength - frameSize && inputPos < origLength - frameSize) {
           let bestOffset = inputPos;
           if (outputPos > 0) {
@@ -4033,6 +4172,12 @@
           offsets.push(bestOffset);
           inputPos += inputHop;
           outputPos += outputHop;
+
+          // ★ 每 500 帧让出 UI 线程一次，防止长时间阻塞
+          frameCounter++;
+          if (frameCounter % 500 === 0) {
+            await new Promise(r => setTimeout(r, 0));
+          }
         }
       }
 
@@ -4080,19 +4225,62 @@
       const resampleRate = Math.pow(2, pitchSemitones / 12);
 
       // Step 1: 重采样改变音调（同时改变时长）
-      const resampledLength = Math.round(origLength / resampleRate);
+      const resampledLength = Math.max(1, Math.round(origLength / resampleRate));
       const ctx = getAudioCtx();
-      const offline1 = new OfflineAudioContext(channels, resampledLength, sr);
-      const src1 = offline1.createBufferSource();
-      src1.buffer = audioBuffer;
-      src1.playbackRate.value = resampleRate;
-      src1.connect(offline1.destination);
-      src1.start();
-      const resampled = await offline1.startRendering();
 
-      // Step 2: 用 OLA 把时长恢复到原始长度
+      let resampled;
+      // ★ 尝试使用 OfflineAudioContext（浏览器和新版 WebView2 支持）
+      const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      if (OfflineCtx) {
+        try {
+          const offline1 = new OfflineCtx(channels, resampledLength, sr);
+          const src1 = offline1.createBufferSource();
+          src1.buffer = audioBuffer;
+          src1.playbackRate.value = resampleRate;
+          src1.connect(offline1.destination);
+          src1.start();
+          // ★ 添加超时保护（10秒），防止 EXE 环境中 startRendering 永远不返回
+          const renderPromise = offline1.startRendering();
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('OfflineAudioContext 渲染超时')), 10000);
+          });
+          resampled = await Promise.race([renderPromise, timeoutPromise]);
+        } catch (e) {
+          console.warn('OfflineAudioContext 失败，使用手动重采样:', e);
+          resampled = manualResample(audioBuffer, resampleRate, resampledLength);
+        }
+      } else {
+        // ★ 回退：手动线性插值重采样
+        resampled = manualResample(audioBuffer, resampleRate, resampledLength);
+      }
+
+      // Step 2: 用 WSOLA 把时长恢复到原始长度
       const restoreRate = resampledLength / origLength;
       return await olaTimeStretch(resampled, restoreRate);
+    }
+
+    // ★ 手动线性插值重采样（OfflineAudioContext 不可用时的回退方案）
+    function manualResample(audioBuffer, rate, newLength) {
+      const sr = audioBuffer.sampleRate;
+      const channels = audioBuffer.numberOfChannels;
+      const ctx = getAudioCtx();
+      const output = createBufferCompat(ctx, channels, newLength, sr);
+      const origLength = audioBuffer.length;
+
+      for (let ch = 0; ch < channels; ch++) {
+        const inputData = audioBuffer.getChannelData(ch);
+        const outputData = output.getChannelData(ch);
+        for (let i = 0; i < newLength; i++) {
+          const srcPos = i * rate;
+          const idx0 = Math.floor(srcPos);
+          const idx1 = Math.min(idx0 + 1, origLength - 1);
+          const frac = srcPos - idx0;
+          if (idx0 < origLength) {
+            outputData[i] = inputData[idx0] * (1 - frac) + inputData[idx1] * frac;
+          }
+        }
+      }
+      return output;
     }
 
     function audioBufferToWav(buffer) {
@@ -4159,6 +4347,13 @@
       const progressFill = document.getElementById('statusProgressFill');
       progressEl.classList.add('active');
 
+      // ★ 确保 AudioContext 已 resume（EXE 环境中可能处于 suspended 状态）
+      try {
+        await ensureAudioContext();
+      } catch (e) {
+        console.warn('AudioContext 初始化失败，继续尝试:', e);
+      }
+
       const total = pending.length;
       let success = 0;
       let failed = 0;
@@ -4171,15 +4366,25 @@
 
         progressFill.style.width = `${((i) / total) * 100}%`;
 
+        // ★ 让出 UI 线程，确保界面更新
+        await new Promise(r => setTimeout(r, 10));
+
         try {
+          // ★ 每次处理前确保 AudioContext 可用
+          if (state.audioCtx && state.audioCtx.state === 'suspended') {
+            try { await state.audioCtx.resume(); } catch(e) {}
+          }
           const result = await processAudioBuffer(f.audioBuffer, f.tempo, f.pitch, f.rate);
           f.processedBuffer = result;
           f.status = 'done';
           success++;
         } catch (err) {
           f.status = 'error';
+          f.errorMsg = err && err.message ? err.message : String(err);
           failed++;
           console.error('处理失败:', f.name, err);
+          setStatus(`❌ 处理失败 [${f.name}]: ${f.errorMsg}`);
+          showToast(`转换失败: ${f.name}`, 'error');
         }
 
         renderFileList();
@@ -4202,11 +4407,13 @@
     async function saveProcessedFiles(filesToSave) {
       if (!filesToSave || filesToSave.length === 0) return;
 
+      // ★ 检测运行环境（浏览器 vs EXE/WebView）
       const isSecureContext = window.isSecureContext;
-      const supportsFSAccess = isSecureContext && 'showDirectoryPicker' in window;
+      const supportsDirPicker = isSecureContext && 'showDirectoryPicker' in window;
+      const supportsFilePicker = isSecureContext && 'showSaveFilePicker' in window;
 
-      if (supportsFSAccess) {
-        // 安全上下文：直接弹出系统文件夹选择器，保持原文件名写入
+      // 方式1：安全上下文 + showDirectoryPicker → 直接选文件夹保存
+      if (supportsDirPicker) {
         try {
           const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
           setStatus(`正在保存 ${filesToSave.length} 个文件到选定目录...`);
@@ -4214,7 +4421,6 @@
           for (const f of filesToSave) {
             if (!f.processedBuffer) continue;
             const blob = audioBufferToWav(f.processedBuffer);
-            // 保持原文件名（仅改扩展名为 .wav）
             const baseName = f.name.replace(/\.[^.]+$/, '');
             const fileName = baseName + '.wav';
             try {
@@ -4234,11 +4440,49 @@
           if (err.name !== 'AbortError') {
             console.warn('showDirectoryPicker 失败:', err.name, err.message);
           }
-          // 用户取消或出错，直接打包 ZIP
+          // 用户取消或出错，继续尝试其他方式
         }
       }
 
-      // 直接打包成 ZIP 下载（保持原文件名，不弹对话框）
+      // ★ 方式2：单文件时用 showSaveFilePicker（EXE 环境可能支持）
+      if (filesToSave.length === 1 && supportsFilePicker) {
+        const f = filesToSave[0];
+        if (f.processedBuffer) {
+          try {
+            const blob = audioBufferToWav(f.processedBuffer);
+            const baseName = f.name.replace(/\.[^.]+$/, '');
+            const handle = await window.showSaveFilePicker({
+              suggestedName: baseName + '.wav',
+              types: [{ description: 'WAV 音频', accept: { 'audio/wav': ['.wav'] } }]
+            });
+            const writable = await handle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+            showToast('文件已保存', 'success');
+            setStatus('已完成: 成功保存 1 个文件');
+            return;
+          } catch (err) {
+            if (err.name !== 'AbortError') {
+              console.warn('showSaveFilePicker 失败:', err.name, err.message);
+            }
+          }
+        }
+      }
+
+      // ★ 方式3：逐个下载 WAV 文件（不打包，EXE 环境兼容性最好）
+      if (filesToSave.length === 1) {
+        const f = filesToSave[0];
+        if (f.processedBuffer) {
+          const blob = audioBufferToWav(f.processedBuffer);
+          const baseName = f.name.replace(/\.[^.]+$/, '');
+          downloadBlob(blob, baseName + '.wav');
+          showToast('已下载转换后的文件', 'success');
+          setStatus('已完成: 下载 1 个文件');
+          return;
+        }
+      }
+
+      // ★ 方式4：打包 ZIP 下载（多文件场景）
       await downloadAsZipDirect(filesToSave);
     }
 
@@ -4249,10 +4493,21 @@
       for (const f of filesToSave) {
         if (!f.processedBuffer) continue;
         const blob = audioBufferToWav(f.processedBuffer);
-        // 保持原文件名（仅改扩展名为 .wav）
         const baseName = f.name.replace(/\.[^.]+$/, '');
         const fileName = baseName + '.wav';
-        const data = new Uint8Array(await blob.arrayBuffer());
+        // ★ 兼容性：blob.arrayBuffer() 在旧版 WebView 中可能不支持
+        let data;
+        if (blob && typeof blob.arrayBuffer === 'function') {
+          data = new Uint8Array(await blob.arrayBuffer());
+        } else {
+          // 回退：使用 FileReader
+          data = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(new Uint8Array(reader.result));
+            reader.onerror = () => reject(new Error('FileReader 读取 blob 失败'));
+            reader.readAsArrayBuffer(blob);
+          });
+        }
         zipFiles.push({ name: fileName, data });
       }
 
@@ -4261,10 +4516,25 @@
         return;
       }
 
-      const zipBlob = createZip(zipFiles);
-      downloadBlob(zipBlob, '音频变速_转换结果.zip');
-      showToast(`已打包下载 ${zipFiles.length} 个文件（ZIP）`, 'success');
-      setStatus(`已完成: 打包下载 ${zipFiles.length} 个文件`);
+      try {
+        const zipBlob = createZip(zipFiles);
+        downloadBlob(zipBlob, '音频变速_转换结果.zip');
+        showToast(`已打包下载 ${zipFiles.length} 个文件（ZIP）`, 'success');
+        setStatus(`已完成: 打包下载 ${zipFiles.length} 个文件`);
+      } catch (e) {
+        // ★ ZIP 打包失败，逐个下载 WAV 文件
+        console.warn('ZIP 打包失败，改为逐个下载:', e);
+        setStatus('正在逐个下载文件...');
+        for (let i = 0; i < zipFiles.length; i++) {
+          const zf = zipFiles[i];
+          const blob = new Blob([zf.data], { type: 'audio/wav' });
+          downloadBlob(blob, zf.name);
+          // 间隔 500ms 避免浏览器阻止多文件下载
+          await new Promise(r => setTimeout(r, 500));
+        }
+        showToast(`已逐个下载 ${zipFiles.length} 个文件`, 'success');
+        setStatus(`已完成: 逐个下载 ${zipFiles.length} 个文件`);
+      }
     }
 
     // ============ 纯 JS ZIP 打包（store 模式，无需第三方库） ============
@@ -4366,13 +4636,117 @@
     }
 
     function downloadBlob(blob, filename) {
+      // 方式1：navigator.msSaveBlob（WebView2 / Edge 环境支持）
+      if (window.navigator && window.navigator.msSaveBlob) {
+        try {
+          if (window.navigator.msSaveBlob(blob, filename)) return;
+        } catch(e) { /* 忽略，尝试下一种方式 */ }
+      }
+
+      // 方式2：showSaveFilePicker（安全上下文 + Chromium 86+）
+      if (window.isSecureContext && 'showSaveFilePicker' in window) {
+        try {
+          window.showSaveFilePicker({
+            suggestedName: filename,
+            types: [{
+              description: filename.endsWith('.zip') ? 'ZIP 文件' : 'WAV 音频',
+              accept: filename.endsWith('.zip')
+                ? { 'application/zip': ['.zip'] }
+                : { 'audio/wav': ['.wav'] }
+            }]
+          }).then(async (handle) => {
+            const writable = await handle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+          }).catch(() => {
+            // 用户取消，回退到 <a download>
+            downloadViaAnchor(blob, filename);
+          });
+          return;
+        } catch(e) { /* 忽略，尝试下一种方式 */ }
+      }
+
+      // 方式3：<a download> + Blob URL（浏览器标准方式）
+      downloadViaAnchor(blob, filename);
+    }
+
+    function downloadViaAnchor(blob, filename) {
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
+      a.href = url;
       a.download = filename;
+      a.style.display = 'none';
+      a.rel = 'noopener';
       document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(a.href);
+      
+      let clicked = false;
+      try {
+        a.click();
+        clicked = true;
+      } catch(e) {
+        console.warn('a.click() 失败:', e);
+      }
+
+      // ★ 延迟 revoke，确保下载已启动（EXE/WebView 环境尤其需要）
+      setTimeout(() => {
+        if (a.parentNode) document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 3000);
+
+      // ★ 如果 click 可能没生效（EXE 环境），显示一个可见的下载链接让用户手动点击
+      // ★ 检测是否在 EXE/非浏览器环境中（file:// 协议或非安全上下文）
+      const isExeEnv = !window.isSecureContext || location.protocol === 'file:' || location.protocol === 'about:';
+      if (!clicked || isExeEnv) {
+        if (!clicked) {
+          showManualDownloadLink(url, filename);
+        } else {
+          // ★ EXE 环境中即使 click 成功也可能不触发下载，延迟显示手动链接
+          setTimeout(() => {
+            showManualDownloadLink(url, filename);
+          }, 1500);
+        }
+      }
+    }
+
+    // ★ 显示手动下载链接（EXE 环境中自动下载可能失败时的回退）
+    function showManualDownloadLink(url, filename) {
+      // 避免重复显示
+      if (document.getElementById('manualDownloadArea')) {
+        const existing = document.getElementById('manualDownloadArea');
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.textContent = '📥 点击下载: ' + filename;
+        link.style.cssText = 'display:block;color:#0984e3;text-decoration:underline;margin:4px 0;font-size:14px;';
+        existing.appendChild(link);
+        return;
+      }
+
+      const area = document.createElement('div');
+      area.id = 'manualDownloadArea';
+      area.style.cssText = 'position:fixed;bottom:60px;right:20px;background:#fff;border:2px solid #0984e3;border-radius:8px;padding:16px;box-shadow:0 4px 16px rgba(0,0,0,0.15);z-index:10000;max-width:350px;';
+      
+      const title = document.createElement('div');
+      title.textContent = '文件已准备就绪，请点击下载：';
+      title.style.cssText = 'font-weight:bold;margin-bottom:8px;color:#1e272e;';
+      area.appendChild(title);
+
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.textContent = '📥 ' + filename;
+      link.style.cssText = 'display:block;color:#0984e3;text-decoration:underline;margin:4px 0;font-size:14px;word-break:break-all;';
+      area.appendChild(link);
+
+      const closeBtn = document.createElement('button');
+      closeBtn.textContent = '关闭';
+      closeBtn.style.cssText = 'margin-top:8px;padding:4px 12px;border:1px solid #dcdde1;border-radius:4px;background:#f0f2f5;cursor:pointer;font-size:12px;';
+      closeBtn.onclick = () => area.remove();
+      area.appendChild(closeBtn);
+
+      document.body.appendChild(area);
+      // 30秒后自动移除
+      setTimeout(() => { if (area.parentNode) area.remove(); }, 30000);
     }
 
     // ---- 预览播放器 ----
