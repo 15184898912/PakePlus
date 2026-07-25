@@ -339,7 +339,8 @@ input, textarea, select { font-family:inherit; font-size:inherit; }
 .preview-controls .ctrl-btn { width:32px; height:32px; display:flex; align-items:center; justify-content:center; border-radius:var(--radius); color:var(--muted); background:transparent; }
 .preview-controls .ctrl-btn:hover { color:var(--fg); background:var(--border); }
 .preview-controls .time-display { font-size:.75rem; color:var(--muted); min-width:100px; text-align:center; font-variant-numeric:tabular-nums; }
-.timeline-area { height:220px; background:var(--bg-card); border-top:1px solid var(--border); flex-shrink:0; overflow-y:auto; }
+.timeline-area { height:220px; background:var(--bg-card); border-top:1px solid var(--border); flex-shrink:0; overflow:auto; }
+.timeline-content { position:relative; min-width:calc(100% + 120px); }
 .timeline-ruler { height:28px; background:var(--bg-card); border-bottom:1px solid var(--border); position:relative; margin-left:120px; cursor:pointer; }
 .timeline-ruler .tick { position:absolute; top:0; height:100%; font-size:.65rem; color:var(--muted); border-left:1px solid var(--border); padding-left:4px; }
 .timeline-tracks { padding:4px 0; }
@@ -350,8 +351,9 @@ input, textarea, select { font-family:inherit; font-size:inherit; }
 .track-clip.selected { outline:2px solid #fff; outline-offset:1px; }
 .track-clip:hover { opacity:.85; }
 .track-clip .clip-label { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.playhead { position:absolute; top:0; bottom:0; width:2px; background:#EF4444; z-index:10; pointer-events:none; }
-.playhead::before { content:''; position:absolute; top:-2px; left:-5px; width:12px; height:8px; background:#EF4444; clip-path:polygon(0 0,100% 0,50% 100%); }
+.playhead { position:absolute; top:0; bottom:0; left:0; width:2px; background:#EF4444; z-index:10; cursor:col-resize; will-change:transform; }
+.playhead::before { content:''; position:absolute; top:-2px; left:-5px; width:12px; height:8px; background:#EF4444; clip-path:polygon(0 0,100% 0,50% 100%); pointer-events:none; }
+.playhead::after { content:''; position:absolute; top:0; left:-6px; right:-6px; bottom:0; }
 /* 素材面板 */
 .asset-list-panel { padding:8px; }
 .asset-item-mini { display:flex; align-items:center; gap:8px; padding:8px; border-radius:var(--radius); cursor:pointer; transition:var(--transition); }
@@ -396,7 +398,7 @@ input, textarea, select { font-family:inherit; font-size:inherit; }
   try {
     const client = await import('/@vite/client');
     const hmr = client.createHotContext('hmr-handler/fake.js');
-    hmr.on('vite:afterUpdate', window['__ICUBE_WEBVIEW_HMR_CALLBACK_1784989582414']);
+    hmr.on('vite:afterUpdate', window['__ICUBE_WEBVIEW_HMR_CALLBACK_1784991038403']);
   } catch {}
 })();</script><style>.buttonsCard-bTXa5j {
   padding: var(--spacer-4);
@@ -753,7 +755,7 @@ input, textarea, select { font-family:inherit; font-size:inherit; }
   try {
     const client = await import('/@vite/client');
     const hmr = client.createHotContext('hmr-handler/fake.js');
-    hmr.on('vite:afterUpdate', window['__ICUBE_WEBVIEW_HMR_CALLBACK_1784989582438']);
+    hmr.on('vite:afterUpdate', window['__ICUBE_WEBVIEW_HMR_CALLBACK_1784991038424']);
   } catch {}
 })();</script><style>.buttonsCard-bTXa5j {
   padding: var(--spacer-4);
@@ -4622,13 +4624,16 @@ function renderEditor(projectId) {
           <button class="ctrl-btn" id="volume-btn" onclick="toggleMute()" title="音量">${state.muted ? ICONS.volumeX : ICONS.volume2}</button>
         </div>
         <div class="timeline-area" id="timeline-area">
-          <div class="timeline-ruler" id="timeline-ruler" onclick="seekTimeline(event)">
-            ${generateRulerTicks(totalDuration, pxPerSecond)}
+          <div class="timeline-content" id="timeline-content"
+               onmousedown="startPlayheadDrag(event)">
+            <div class="timeline-ruler" id="timeline-ruler">
+              ${generateRulerTicks(totalDuration, pxPerSecond)}
+            </div>
+            <div class="timeline-tracks" id="timeline-tracks">
+              ${renderTimelineTracks(TIMELINE_CLIPS, pxPerSecond)}
+            </div>
+            <div class="playhead" id="playhead" style="transform:translateX(${120 + state.playheadPosition * pxPerSecond}px);"></div>
           </div>
-          <div class="timeline-tracks" id="timeline-tracks">
-            ${renderTimelineTracks(TIMELINE_CLIPS, pxPerSecond)}
-          </div>
-          <div class="playhead" id="playhead" style="left:${120 + state.playheadPosition * pxPerSecond}px;"></div>
         </div>
       </div>
       <!-- 右侧AI面板 -->
@@ -4694,21 +4699,62 @@ function selectClip(label, el) {
   el.classList.add('selected');
 }
 
+// ===== 播放头拖拽（高性能实现） =====
+const TIMELINE_PPS = 8;
+const TRACK_LABEL_WIDTH = 120;
+let _cachedTotalDuration = 0;
+
+function getTotalDuration() {
+  if (!_cachedTotalDuration) {
+    _cachedTotalDuration = TIMELINE_CLIPS.reduce((max, c) => Math.max(max, c.start + c.duration), 0);
+  }
+  return _cachedTotalDuration;
+}
+
 function seekTimeline(e) {
-  const ruler = document.getElementById('timeline-ruler');
-  const rect = ruler.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const pps = 8;
-  state.playheadPosition = Math.max(0, x / pps);
+  const tc = document.getElementById('timeline-content');
+  if (!tc) return;
+  const rect = tc.getBoundingClientRect();
+  const x = e.clientX - rect.left - TRACK_LABEL_WIDTH;
+  state.playheadPosition = Math.max(0, Math.min(getTotalDuration(), x / TIMELINE_PPS));
   updatePlayhead();
 }
 
+let _playheadRAF = null;
 function updatePlayhead() {
-  const playhead = document.getElementById('playhead');
-  if (playhead) playhead.style.left = (120 + state.playheadPosition * 8) + 'px';
-  const td = document.getElementById('time-display');
-  const totalDuration = TIMELINE_CLIPS.reduce((max, c) => Math.max(max, c.start + c.duration), 0);
-  if (td) td.textContent = formatDuration(Math.floor(state.playheadPosition)) + ' / ' + formatDuration(totalDuration);
+  if (_playheadRAF) return;
+  _playheadRAF = requestAnimationFrame(() => {
+    _playheadRAF = null;
+    const playhead = document.getElementById('playhead');
+    if (playhead) playhead.style.transform = 'translateX(' + (TRACK_LABEL_WIDTH + state.playheadPosition * TIMELINE_PPS) + 'px)';
+    const td = document.getElementById('time-display');
+    if (td) td.textContent = formatDuration(Math.floor(state.playheadPosition)) + ' / ' + formatDuration(getTotalDuration());
+  });
+}
+
+function startPlayheadDrag(e) {
+  // 只在左键按下时启动拖拽
+  if (e.button !== 0) return;
+  // 如果点击的是片段，不启动播放头拖拽
+  if (e.target.closest('.track-clip')) return;
+
+  e.preventDefault();
+  seekTimeline(e);
+
+  const onMove = (ev) => {
+    ev.preventDefault();
+    seekTimeline(ev);
+  };
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  };
+  document.addEventListener('mousemove', onMove, { passive: false });
+  document.addEventListener('mouseup', onUp);
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
 }
 
 let playInterval = null;
