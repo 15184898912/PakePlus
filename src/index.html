@@ -116,6 +116,48 @@ input, textarea, select { font-family:inherit; font-size:inherit; }
 .template-card h4 { font-size:.9rem; margin-bottom:4px; }
 .template-card .tpl-desc { font-size:.75rem; color:var(--muted); }
 .template-card .tpl-ratio { font-size:.7rem; color:var(--muted); margin-top:6px; }
+
+/* 模板管理页 */
+.templates-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:12px; }
+.templates-header h3 { font-size:1.2rem; }
+.tm-toolbar { display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap; }
+.tm-toolbar .search-wrap { flex:1; min-width:200px; }
+.tm-filter-tabs { display:flex; gap:6px; flex-wrap:wrap; }
+.tm-filter-tab { padding:6px 14px; border-radius:20px; font-size:.8rem; cursor:pointer; border:1px solid var(--border); background:var(--bg-card); transition:var(--transition); }
+.tm-filter-tab:hover { border-color:var(--primary); }
+.tm-filter-tab.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+.tm-stats { font-size:.8rem; color:var(--muted); margin-bottom:12px; }
+.tm-stats .tm-stat-num { color:var(--primary); font-weight:700; }
+
+/* 模板卡片操作区 */
+.template-card .tpl-meta { display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin-top:8px; }
+.template-card .tpl-actions { display:flex; gap:6px; justify-content:center; margin-top:12px; padding-top:12px; border-top:1px solid var(--border); }
+.template-card .tpl-badge-row { display:flex; gap:4px; justify-content:center; align-items:center; margin-top:4px; }
+
+/* 颜色选择器 */
+.color-picker { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+.color-option { width:32px; height:32px; border-radius:8px; cursor:pointer; border:3px solid transparent; transition:var(--transition); position:relative; }
+.color-option:hover { transform:scale(1.1); }
+.color-option.selected { border-color:#fff; box-shadow:0 0 0 2px var(--primary); }
+.color-option.selected::after { content:'✓'; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#fff; font-size:14px; font-weight:700; }
+
+/* 模板预览 */
+.tpl-preview { padding:20px; }
+.tpl-preview-header { display:flex; align-items:center; gap:12px; margin-bottom:16px; }
+.tpl-preview-icon { width:56px; height:56px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:1.5rem; }
+.tpl-preview-info h3 { font-size:1.1rem; margin-bottom:4px; }
+.tpl-preview-info p { font-size:.85rem; color:var(--muted); }
+.tpl-preview-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-top:16px; }
+.tpl-preview-item { background:var(--bg-elevated); border:1px solid var(--border); border-radius:10px; padding:12px; }
+.tpl-preview-item .label { font-size:.7rem; color:var(--muted); margin-bottom:4px; text-transform:uppercase; letter-spacing:.5px; }
+.tpl-preview-item .value { font-size:.9rem; font-weight:600; }
+
+/* 导入区域 */
+.tpl-import-area { margin-top:16px; }
+.tpl-import-zone { border:2px dashed var(--border); border-radius:12px; padding:24px; text-align:center; cursor:pointer; transition:var(--transition); }
+.tpl-import-zone:hover { border-color:var(--primary); background:rgba(124,58,237,.05); }
+.tpl-import-zone.dragover { border-color:var(--primary); background:rgba(124,58,237,.1); }
+
 .steps-section { padding:60px 32px; max-width:900px; margin:0 auto; }
 .steps-section h2 { text-align:center; font-size:1.8rem; margin-bottom:40px; }
 .steps { display:flex; gap:20px; justify-content:center; }
@@ -354,7 +396,7 @@ input, textarea, select { font-family:inherit; font-size:inherit; }
   try {
     const client = await import('/@vite/client');
     const hmr = client.createHotContext('hmr-handler/fake.js');
-    hmr.on('vite:afterUpdate', window['__ICUBE_WEBVIEW_HMR_CALLBACK_1784987774152']);
+    hmr.on('vite:afterUpdate', window['__ICUBE_WEBVIEW_HMR_CALLBACK_1784989582414']);
   } catch {}
 })();</script><style>.buttonsCard-bTXa5j {
   padding: var(--spacer-4);
@@ -711,7 +753,7 @@ input, textarea, select { font-family:inherit; font-size:inherit; }
   try {
     const client = await import('/@vite/client');
     const hmr = client.createHotContext('hmr-handler/fake.js');
-    hmr.on('vite:afterUpdate', window['__ICUBE_WEBVIEW_HMR_CALLBACK_1784987774173']);
+    hmr.on('vite:afterUpdate', window['__ICUBE_WEBVIEW_HMR_CALLBACK_1784989582438']);
   } catch {}
 })();</script><style>.buttonsCard-bTXa5j {
   padding: var(--spacer-4);
@@ -2789,7 +2831,7 @@ input, textarea, select { font-family:inherit; font-size:inherit; }
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg>
       </div>
       <h3>行业模板</h3>
-      <p>12大行业专业模板，电商、婚礼、美食等场景开箱即用</p>
+      <p>多行业专业模板，电商、婚礼、美食等场景开箱即用，支持无限扩充</p>
     </div>
   
     <div class="feature-card">
@@ -2817,8 +2859,8 @@ input, textarea, select { font-family:inherit; font-size:inherit; }
     </div>
   </section>
   <section class="templates-section">
-    <h2><span class="gradient-text">12大行业模板</span></h2>
-    <p class="subtitle">覆盖主流视频创作场景，开箱即用</p>
+    <h2><span class="gradient-text" id="landing-templates-title">12大行业模板</span></h2>
+    <p class="subtitle">覆盖主流视频创作场景，开箱即用 · <a href="#templates" style="color:var(--primary);font-size:.85rem;">管理模板 →</a></p>
     <div class="templates-grid" id="landing-templates">
     <div class="template-card" onclick="goToRegister('电商带货')">
       <div class="tpl-icon" style="background:#F59E0B20;color:#F59E0B;">
@@ -2826,7 +2868,7 @@ input, textarea, select { font-family:inherit; font-size:inherit; }
       </div>
       <h4>电商带货</h4>
       <p class="tpl-desc">产品展示促销</p>
-      <p class="tpl-ratio">16:9</p>
+      <p class="tpl-ratio">16:9 · 动感</p>
     </div>
   
     <div class="template-card" onclick="goToRegister('短视频/Vlog')">
@@ -2835,7 +2877,7 @@ input, textarea, select { font-family:inherit; font-size:inherit; }
       </div>
       <h4>短视频/Vlog</h4>
       <p class="tpl-desc">快节奏日常记录</p>
-      <p class="tpl-ratio">9:16</p>
+      <p class="tpl-ratio">9:16 · 轻快</p>
     </div>
   
     <div class="template-card" onclick="goToRegister('企业宣传')">
@@ -2844,7 +2886,7 @@ input, textarea, select { font-family:inherit; font-size:inherit; }
       </div>
       <h4>企业宣传</h4>
       <p class="tpl-desc">品牌形象展示</p>
-      <p class="tpl-ratio">16:9</p>
+      <p class="tpl-ratio">16:9 · 专业</p>
     </div>
   
     <div class="template-card" onclick="goToRegister('教育培训')">
@@ -2853,7 +2895,7 @@ input, textarea, select { font-family:inherit; font-size:inherit; }
       </div>
       <h4>教育培训</h4>
       <p class="tpl-desc">课程内容讲解</p>
-      <p class="tpl-ratio">16:9</p>
+      <p class="tpl-ratio">16:9 · 平缓</p>
     </div>
   
     <div class="template-card" onclick="goToRegister('房地产')">
@@ -2862,7 +2904,7 @@ input, textarea, select { font-family:inherit; font-size:inherit; }
       </div>
       <h4>房地产</h4>
       <p class="tpl-desc">房源视频介绍</p>
-      <p class="tpl-ratio">16:9</p>
+      <p class="tpl-ratio">16:9 · 优雅</p>
     </div>
   
     <div class="template-card" onclick="goToRegister('婚礼纪念')">
@@ -2871,7 +2913,7 @@ input, textarea, select { font-family:inherit; font-size:inherit; }
       </div>
       <h4>婚礼纪念</h4>
       <p class="tpl-desc">浪漫感人短片</p>
-      <p class="tpl-ratio">16:9</p>
+      <p class="tpl-ratio">16:9 · 浪漫</p>
     </div>
   
     <div class="template-card" onclick="goToRegister('美食餐饮')">
@@ -2880,7 +2922,7 @@ input, textarea, select { font-family:inherit; font-size:inherit; }
       </div>
       <h4>美食餐饮</h4>
       <p class="tpl-desc">特写烹饪过程</p>
-      <p class="tpl-ratio">1:1</p>
+      <p class="tpl-ratio">1:1 · 轻快</p>
     </div>
   
     <div class="template-card" onclick="goToRegister('旅游游记')">
@@ -2889,7 +2931,7 @@ input, textarea, select { font-family:inherit; font-size:inherit; }
       </div>
       <h4>旅游游记</h4>
       <p class="tpl-desc">风景文化记录</p>
-      <p class="tpl-ratio">16:9</p>
+      <p class="tpl-ratio">16:9 · 自由</p>
     </div>
   
     <div class="template-card" onclick="goToRegister('运动健身')">
@@ -2898,7 +2940,7 @@ input, textarea, select { font-family:inherit; font-size:inherit; }
       </div>
       <h4>运动健身</h4>
       <p class="tpl-desc">训练过程记录</p>
-      <p class="tpl-ratio">9:16</p>
+      <p class="tpl-ratio">9:16 · 热血</p>
     </div>
   
     <div class="template-card" onclick="goToRegister('游戏集锦')">
@@ -2907,7 +2949,7 @@ input, textarea, select { font-family:inherit; font-size:inherit; }
       </div>
       <h4>游戏集锦</h4>
       <p class="tpl-desc">精彩操作混剪</p>
-      <p class="tpl-ratio">16:9</p>
+      <p class="tpl-ratio">16:9 · 热血</p>
     </div>
   
     <div class="template-card" onclick="goToRegister('新闻资讯')">
@@ -2916,7 +2958,7 @@ input, textarea, select { font-family:inherit; font-size:inherit; }
       </div>
       <h4>新闻资讯</h4>
       <p class="tpl-desc">新闻播报制作</p>
-      <p class="tpl-ratio">16:9</p>
+      <p class="tpl-ratio">16:9 · 严肃</p>
     </div>
   
     <div class="template-card" onclick="goToRegister('音乐MV')">
@@ -2925,7 +2967,7 @@ input, textarea, select { font-family:inherit; font-size:inherit; }
       </div>
       <h4>音乐MV</h4>
       <p class="tpl-desc">音乐可视化</p>
-      <p class="tpl-ratio">16:9</p>
+      <p class="tpl-ratio">16:9 · 动感</p>
     </div>
   </div>
   </section>
@@ -3054,6 +3096,10 @@ input, textarea, select { font-family:inherit; font-size:inherit; }
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"></polygon></svg>
           渲染队列
         </div>
+        <div class="sidebar-nav-item" data-shell="templates" onclick="switchShell('templates')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg>
+          行业模板
+        </div>
         <div class="sidebar-nav-item" data-shell="settings" onclick="switchShell('settings')">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"></path></svg>
           设置
@@ -3154,6 +3200,13 @@ const ICONS = {
   undo: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>',
   redo: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>',
   eye: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
+  edit: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
+  copy: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>',
+  filter: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>',
+  import: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+  export: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
+  star: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+  tag: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>',
 };
 
 // ===== Mock 数据 =====
@@ -3192,25 +3245,545 @@ const MOCK_RENDERS = [
   { id: "render_004", projectId: "proj_vlog_005", projectTitle: "周末探店Vlog", status: "queued", progress: 0, resolution: "1080p", format: "mp4" },
 ];
 
-const TEMPLATES = [
-  { key: "ecommerce", name: "电商带货", color: "#F59E0B", desc: "产品展示促销", aspectRatio: "16:9" },
-  { key: "vlog", name: "短视频/Vlog", color: "#8B5CF6", desc: "快节奏日常记录", aspectRatio: "9:16" },
-  { key: "corporate", name: "企业宣传", color: "#3B82F6", desc: "品牌形象展示", aspectRatio: "16:9" },
-  { key: "education", name: "教育培训", color: "#10B981", desc: "课程内容讲解", aspectRatio: "16:9" },
-  { key: "realestate", name: "房地产", color: "#6366F1", desc: "房源视频介绍", aspectRatio: "16:9" },
-  { key: "wedding", name: "婚礼纪念", color: "#EC4899", desc: "浪漫感人短片", aspectRatio: "16:9" },
-  { key: "food", name: "美食餐饮", color: "#F97316", desc: "特写烹饪过程", aspectRatio: "1:1" },
-  { key: "travel", name: "旅游游记", color: "#06B6D4", desc: "风景文化记录", aspectRatio: "16:9" },
-  { key: "fitness", name: "运动健身", color: "#EF4444", desc: "训练过程记录", aspectRatio: "9:16" },
-  { key: "gaming", name: "游戏集锦", color: "#84CC16", desc: "精彩操作混剪", aspectRatio: "16:9" },
-  { key: "news", name: "新闻资讯", color: "#64748B", desc: "新闻播报制作", aspectRatio: "16:9" },
-  { key: "music", name: "音乐MV", color: "#A855F7", desc: "音乐可视化", aspectRatio: "16:9" },
+// 内置行业模板（不可删除，可编辑）
+const BUILTIN_TEMPLATES = [
+  { key: "ecommerce", name: "电商带货", color: "#F59E0B", desc: "产品展示促销", aspectRatio: "16:9", musicMood: "动感", fps: 30, isBuiltin: true, category: "商业营销" },
+  { key: "vlog", name: "短视频/Vlog", color: "#8B5CF6", desc: "快节奏日常记录", aspectRatio: "9:16", musicMood: "轻快", fps: 30, isBuiltin: true, category: "生活记录" },
+  { key: "corporate", name: "企业宣传", color: "#3B82F6", desc: "品牌形象展示", aspectRatio: "16:9", musicMood: "专业", fps: 30, isBuiltin: true, category: "商业营销" },
+  { key: "education", name: "教育培训", color: "#10B981", desc: "课程内容讲解", aspectRatio: "16:9", musicMood: "平缓", fps: 30, isBuiltin: true, category: "专业内容" },
+  { key: "realestate", name: "房地产", color: "#6366F1", desc: "房源视频介绍", aspectRatio: "16:9", musicMood: "优雅", fps: 30, isBuiltin: true, category: "商业营销" },
+  { key: "wedding", name: "婚礼纪念", color: "#EC4899", desc: "浪漫感人短片", aspectRatio: "16:9", musicMood: "浪漫", fps: 30, isBuiltin: true, category: "生活记录" },
+  { key: "food", name: "美食餐饮", color: "#F97316", desc: "特写烹饪过程", aspectRatio: "1:1", musicMood: "轻快", fps: 30, isBuiltin: true, category: "生活记录" },
+  { key: "travel", name: "旅游游记", color: "#06B6D4", desc: "风景文化记录", aspectRatio: "16:9", musicMood: "自由", fps: 30, isBuiltin: true, category: "生活记录" },
+  { key: "fitness", name: "运动健身", color: "#EF4444", desc: "训练过程记录", aspectRatio: "9:16", musicMood: "热血", fps: 30, isBuiltin: true, category: "娱乐运动" },
+  { key: "gaming", name: "游戏集锦", color: "#84CC16", desc: "精彩操作混剪", aspectRatio: "16:9", musicMood: "热血", fps: 60, isBuiltin: true, category: "娱乐运动" },
+  { key: "news", name: "新闻资讯", color: "#64748B", desc: "新闻播报制作", aspectRatio: "16:9", musicMood: "严肃", fps: 25, isBuiltin: true, category: "专业内容" },
+  { key: "music", name: "音乐MV", color: "#A855F7", desc: "音乐可视化", aspectRatio: "16:9", musicMood: "动感", fps: 30, isBuiltin: true, category: "专业内容" },
 ];
+
+// 模板分类列表
+const TEMPLATE_CATEGORIES = ['全部', '商业营销', '生活记录', '专业内容', '娱乐运动', '自定义'];
+
+// 可选颜色色板
+const TEMPLATE_COLORS = ['#F59E0B','#8B5CF6','#3B82F6','#10B981','#6366F1','#EC4899','#F97316','#06B6D4','#EF4444','#84CC16','#64748B','#A855F7','#14B8A6','#E11D48','#0EA5E9','#FACC15'];
+
+/**
+ * 获取全部模板（内置 + 用户自定义），自定义优先加载
+ */
+function getTemplates() {
+  const custom = state.customTemplates || [];
+  return [...BUILTIN_TEMPLATES, ...custom];
+}
+
+/**
+ * 按key获取单个模板
+ */
+function getTemplateByKey(key) {
+  return getTemplates().find(t => t.key === key);
+}
+
+/**
+ * 保存自定义模板到localStorage
+ */
+function saveCustomTemplates() {
+  localStorage.setItem('acs_custom_templates', JSON.stringify(state.customTemplates));
+}
+
+/**
+ * 生成唯一key
+ */
+function generateTemplateKey(name) {
+  return 'tpl_' + Date.now().toString(36) + '_' + name.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '').substring(0, 6);
+}
+
+// 模板管理状态
+let tplManagerState = { search: '', category: '全部' };
+
+/**
+ * 渲染模板管理页面
+ */
+function renderTemplateManager(el) {
+  const allTemplates = getTemplates();
+  const builtinCount = BUILTIN_TEMPLATES.length;
+  const customCount = state.customTemplates.length;
+
+  el.innerHTML = `
+    <div class="templates-header">
+      <h3>${ICONS.film} 行业模板管理</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-secondary btn-sm" onclick="importTemplates()">${ICONS.import} 导入</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportTemplates()">${ICONS.export} 导出</button>
+        <button class="btn btn-primary btn-sm" onclick="showAddTemplateModal()">${ICONS.plus} 添加模板</button>
+      </div>
+    </div>
+    <div class="tm-stats">
+      共 <span class="tm-stat-num">${allTemplates.length}</span> 个模板
+      （内置 ${builtinCount} · 自定义 ${customCount}）
+    </div>
+    <div class="tm-toolbar">
+      <div class="search-wrap">
+        ${ICONS.search}
+        <input class="input" id="tpl-search" placeholder="搜索模板名称或描述..." value="${tplManagerState.search}" oninput="onTplSearchInput(this.value)">
+      </div>
+      <div class="tm-filter-tabs">
+        ${TEMPLATE_CATEGORIES.map(cat => `
+          <div class="tm-filter-tab ${tplManagerState.category===cat?'active':''}" onclick="setTplCategory('${cat}')">${cat}</div>
+        `).join('')}
+      </div>
+    </div>
+    <div class="templates-grid" id="tpl-grid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr));">
+      ${renderTemplateCards(getFilteredTemplates())}
+    </div>
+  `;
+}
+
+/**
+ * 根据搜索和分类获取过滤后的模板
+ */
+function getFilteredTemplates() {
+  const q = tplManagerState.search.toLowerCase();
+  const cat = tplManagerState.category;
+  return getTemplates().filter(t => {
+    const matchSearch = !q || t.name.toLowerCase().includes(q) || t.desc.toLowerCase().includes(q) || (t.musicMood||'').toLowerCase().includes(q);
+    let matchCat = true;
+    if (cat === '自定义') {
+      matchCat = !t.isBuiltin;
+    } else if (cat !== '全部') {
+      matchCat = (t.category || '其他') === cat;
+    }
+    return matchSearch && matchCat;
+  });
+}
+
+/**
+ * 渲染模板卡片列表HTML
+ */
+function renderTemplateCards(templates) {
+  if (templates.length === 0) {
+    return `<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--muted);">
+      ${ICONS.search}
+      <p style="margin-top:12px;">没有找到匹配的模板</p>
+      <button class="btn btn-primary btn-sm" style="margin-top:12px;" onclick="showAddTemplateModal()">${ICONS.plus} 创建新模板</button>
+    </div>`;
+  }
+  return templates.map(t => `
+    <div class="template-card" style="text-align:left;display:flex;flex-direction:column;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="tpl-icon" style="margin:0;background:${t.color}20;color:${t.color};width:40px;height:40px;font-size:1.1rem;">
+          ${ICONS.film}
+        </div>
+        <div style="flex:1;min-width:0;">
+          <h4 style="font-size:.9rem;margin-bottom:2px;display:flex;align-items:center;gap:4px;">
+            ${t.name}
+            ${t.isBuiltin
+              ? '<span class="badge badge-gray" style="font-size:.55rem;">内置</span>'
+              : '<span class="badge badge-green" style="font-size:.55rem;">自定义</span>'}
+          </h4>
+          <span style="font-size:.65rem;color:var(--muted);">${t.category || '其他'}</span>
+        </div>
+      </div>
+      <p class="tpl-desc" style="margin-top:8px;text-align:left;">${t.desc}</p>
+      <div class="tpl-meta">
+        <span class="badge badge-gray">${t.aspectRatio}</span>
+        <span class="badge badge-gray">${t.fps}fps</span>
+        <span class="badge badge-gray">${t.musicMood}</span>
+      </div>
+      <div class="tpl-actions">
+        <button class="btn btn-secondary btn-sm" title="预览" onclick="event.stopPropagation();previewTemplate('${t.key}')">${ICONS.eye}</button>
+        <button class="btn btn-secondary btn-sm" title="编辑" onclick="event.stopPropagation();showAddTemplateModal('${t.key}')">${ICONS.edit}</button>
+        <button class="btn btn-secondary btn-sm" title="复制" onclick="event.stopPropagation();duplicateTemplate('${t.key}')">${ICONS.copy}</button>
+        ${t.isBuiltin
+          ? ''
+          : `<button class="btn btn-danger btn-sm" title="删除" onclick="event.stopPropagation();deleteTemplate('${t.key}')">${ICONS.trash}</button>`}
+      </div>
+    </div>
+  `).join('');
+}
+
+/**
+ * 搜索输入处理（防抖）
+ */
+let tplSearchTimer = null;
+function onTplSearchInput(val) {
+  tplManagerState.search = val;
+  clearTimeout(tplSearchTimer);
+  tplSearchTimer = setTimeout(() => {
+    const grid = document.getElementById('tpl-grid');
+    if (grid) grid.innerHTML = renderTemplateCards(getFilteredTemplates());
+  }, 200);
+}
+
+/**
+ * 设置分类筛选
+ */
+function setTplCategory(cat) {
+  tplManagerState.category = cat;
+  renderTemplateManager(document.getElementById('shell-content'));
+}
+
+/**
+ * 校验模板数据
+ * 返回 { valid: boolean, error: string }
+ */
+function validateTemplate(name, desc, musicMood, aspectRatio, fps, editKey) {
+  if (!name || !name.trim()) return { valid: false, error: '请输入模板名称' };
+  if (name.trim().length > 20) return { valid: false, error: '模板名称不能超过20个字符' };
+  if (!desc || !desc.trim()) return { valid: false, error: '请输入模板描述' };
+  if (!musicMood || !musicMood.trim()) return { valid: false, error: '请输入音乐风格' };
+  // 检查重名（排除正在编辑的模板自身）
+  const allTemplates = getTemplates();
+  const duplicate = allTemplates.find(t => t.name === name.trim() && t.key !== editKey);
+  if (duplicate) return { valid: false, error: `已存在名为「${name.trim()}」的模板，请使用其他名称` };
+  // 校验宽高比
+  const validRatios = ['16:9', '9:16', '1:1', '4:3', '21:9'];
+  if (!validRatios.includes(aspectRatio)) return { valid: false, error: '宽高比不合法' };
+  // 校验帧率
+  if (![24, 25, 30, 60].includes(parseInt(fps))) return { valid: false, error: '帧率不合法' };
+  return { valid: true, error: '' };
+}
+
+/**
+ * 添加/编辑模板弹窗
+ */
+function showAddTemplateModal(key) {
+  const isEdit = !!key;
+  const t = isEdit ? getTemplateByKey(key) : null;
+  const title = isEdit ? `编辑模板: ${t.name}` : '添加新模板';
+
+  showModal({
+    title,
+    content: `
+      <div class="form-group">
+        <label>模板名称 <span style="color:#EF4444;">*</span></label>
+        <input class="input" id="tpl-name" placeholder="输入模板名称（最多20字）" value="${t ? t.name.replace(/"/g,'&quot;') : ''}" maxlength="20">
+      </div>
+      <div class="form-group">
+        <label>模板描述 <span style="color:#EF4444;">*</span></label>
+        <textarea class="input" id="tpl-desc" rows="2" placeholder="描述模板特点和适用场景" style="resize:vertical;">${t ? t.desc : ''}</textarea>
+      </div>
+      <div class="form-group">
+        <label>分类 <span style="color:#EF4444;">*</span></label>
+        <select class="input" id="tpl-category">
+          ${['商业营销','生活记录','专业内容','娱乐运动','其他'].map(c => `
+            <option value="${c}" ${t && (t.category||'') === c ? 'selected' : ''}>${c}</option>
+          `).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>宽高比 <span style="color:#EF4444;">*</span></label>
+        <select class="input" id="tpl-ratio">
+          <option value="16:9" ${t && t.aspectRatio === '16:9' ? 'selected' : ''}>16:9 (横屏)</option>
+          <option value="9:16" ${t && t.aspectRatio === '9:16' ? 'selected' : ''}>9:16 (竖屏)</option>
+          <option value="1:1" ${t && t.aspectRatio === '1:1' ? 'selected' : ''}>1:1 (正方形)</option>
+          <option value="4:3" ${t && t.aspectRatio === '4:3' ? 'selected' : ''}>4:3 (传统)</option>
+          <option value="21:9" ${t && t.aspectRatio === '21:9' ? 'selected' : ''}>21:9 (宽屏)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>音乐风格 <span style="color:#EF4444;">*</span></label>
+        <input class="input" id="tpl-mood" placeholder="例如：动感、浪漫、轻快" value="${t ? t.musicMood : ''}">
+      </div>
+      <div class="form-group">
+        <label>帧率 (fps) <span style="color:#EF4444;">*</span></label>
+        <select class="input" id="tpl-fps">
+          <option value="24" ${t && t.fps === 24 ? 'selected' : ''}>24</option>
+          <option value="25" ${t && t.fps === 25 ? 'selected' : ''}>25</option>
+          <option value="30" ${(!t || t.fps === 30) ? 'selected' : ''}>30</option>
+          <option value="60" ${t && t.fps === 60 ? 'selected' : ''}>60</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>主题颜色 <span style="color:#EF4444;">*</span></label>
+        <div class="color-picker">
+          ${TEMPLATE_COLORS.map(color => `
+            <div class="color-option ${(!t && color === TEMPLATE_COLORS[0]) || (t && t.color === color) ? 'selected' : ''}" data-color="${color}" style="background:${color};" onclick="selectTemplateColor('${color}')"></div>
+          `).join('')}
+        </div>
+        <input type="hidden" id="tpl-color" value="${t ? t.color : TEMPLATE_COLORS[0]}">
+      </div>
+    `,
+    onConfirm: () => {
+      const name = document.getElementById('tpl-name').value.trim();
+      const desc = document.getElementById('tpl-desc').value.trim();
+      const category = document.getElementById('tpl-category').value;
+      const aspectRatio = document.getElementById('tpl-ratio').value;
+      const musicMood = document.getElementById('tpl-mood').value.trim();
+      const fps = parseInt(document.getElementById('tpl-fps').value);
+      const color = document.getElementById('tpl-color').value;
+
+      // 校验
+      const validation = validateTemplate(name, desc, musicMood, aspectRatio, fps, key);
+      if (!validation.valid) {
+        showToast(validation.error, 'error');
+        return false;
+      }
+
+      if (isEdit) {
+        if (t.isBuiltin) {
+          // 内置模板：不支持编辑名称（保持key一致），仅允许在自定义列表中创建副本
+          showToast('内置模板不可修改，请使用「复制」功能创建可编辑副本', 'info');
+          return false;
+        }
+        // 编辑自定义模板
+        state.customTemplates = state.customTemplates.map(tpl =>
+          tpl.key === key ? { ...tpl, name, desc, category, aspectRatio, musicMood, fps, color } : tpl
+        );
+        showToast('模板已更新', 'success');
+      } else {
+        // 创建新模板
+        const newTemplate = {
+          key: generateTemplateKey(name),
+          name, desc, category, aspectRatio, musicMood, fps, color,
+          isBuiltin: false
+        };
+        state.customTemplates.unshift(newTemplate);
+        showToast('新模板已添加', 'success');
+      }
+
+      saveCustomTemplates();
+      renderTemplateManager(document.getElementById('shell-content'));
+      renderLandingTemplates();
+      return true;
+    }
+  });
+}
+
+/**
+ * 颜色选择
+ */
+function selectTemplateColor(color) {
+  document.getElementById('tpl-color').value = color;
+  document.querySelectorAll('.color-option').forEach(el => {
+    el.classList.toggle('selected', el.dataset.color === color);
+  });
+}
+
+/**
+ * 删除模板
+ */
+function deleteTemplate(key) {
+  const t = getTemplateByKey(key);
+  if (!t) { showToast('模板不存在', 'error'); return; }
+  if (t.isBuiltin) { showToast('内置模板不可删除', 'error'); return; }
+  showConfirmModal(
+    '删除模板',
+    `确定要删除模板「${t.name}」吗？此操作不可撤销。`,
+    () => {
+      state.customTemplates = state.customTemplates.filter(tpl => tpl.key !== key);
+      saveCustomTemplates();
+      renderTemplateManager(document.getElementById('shell-content'));
+      renderLandingTemplates();
+      showToast('模板已删除', 'success');
+    }
+  );
+}
+
+/**
+ * 复制模板（内置和自定义都可复制为自定义模板）
+ */
+function duplicateTemplate(key) {
+  const t = getTemplateByKey(key);
+  if (!t) { showToast('模板不存在', 'error'); return; }
+  // 生成副本名称（避免重名）
+  let newName = t.name + '_副本';
+  let suffix = 1;
+  while (getTemplates().find(x => x.name === newName)) {
+    newName = t.name + '_副本' + suffix;
+    suffix++;
+  }
+  const newTemplate = {
+    ...t,
+    key: generateTemplateKey(newName),
+    name: newName,
+    isBuiltin: false
+  };
+  state.customTemplates.unshift(newTemplate);
+  saveCustomTemplates();
+  renderTemplateManager(document.getElementById('shell-content'));
+  renderLandingTemplates();
+  showToast(`已复制为「${newName}」`, 'success');
+}
+
+/**
+ * 预览模板
+ */
+function previewTemplate(key) {
+  const t = getTemplateByKey(key);
+  if (!t) { showToast('模板不存在', 'error'); return; }
+  showModal({
+    title: '模板预览',
+    hideConfirm: true,
+    content: `
+      <div class="tpl-preview">
+        <div class="tpl-preview-header">
+          <div class="tpl-preview-icon" style="background:${t.color}20;color:${t.color};">
+            ${ICONS.film}
+          </div>
+          <div class="tpl-preview-info">
+            <h3>${t.name} ${t.isBuiltin ? '<span class="badge badge-gray" style="font-size:.6rem;">内置</span>' : '<span class="badge badge-green" style="font-size:.6rem;">自定义</span>'}</h3>
+            <p>${t.desc}</p>
+          </div>
+        </div>
+        <div class="tpl-preview-grid">
+          <div class="tpl-preview-item">
+            <div class="label">分类</div>
+            <div class="value">${t.category || '其他'}</div>
+          </div>
+          <div class="tpl-preview-item">
+            <div class="label">宽高比</div>
+            <div class="value">${t.aspectRatio}</div>
+          </div>
+          <div class="tpl-preview-item">
+            <div class="label">帧率</div>
+            <div class="value">${t.fps} fps</div>
+          </div>
+          <div class="tpl-preview-item">
+            <div class="label">音乐风格</div>
+            <div class="value">${t.musicMood}</div>
+          </div>
+          <div class="tpl-preview-item">
+            <div class="label">主题色</div>
+            <div class="value" style="display:flex;align-items:center;gap:6px;">
+              <span style="width:16px;height:16px;border-radius:4px;background:${t.color};display:inline-block;"></span>
+              ${t.color}
+            </div>
+          </div>
+          <div class="tpl-preview-item">
+            <div class="label">类型</div>
+            <div class="value">${t.isBuiltin ? '内置模板' : '自定义模板'}</div>
+          </div>
+        </div>
+        <div style="margin-top:20px;display:flex;gap:8px;">
+          <button class="btn btn-primary btn-sm" style="flex:1;" onclick="closeModal();quickCreate('${t.key}')">${ICONS.plus} 使用此模板创建项目</button>
+          <button class="btn btn-secondary btn-sm" onclick="closeModal();duplicateTemplate('${t.key}')">${ICONS.copy} 复制</button>
+        </div>
+      </div>
+    `
+  });
+}
+
+/**
+ * 导出模板为JSON文件
+ */
+function exportTemplates() {
+  const customOnly = state.customTemplates;
+  if (customOnly.length === 0) {
+    showToast('没有自定义模板可导出', 'info');
+    return;
+  }
+  const data = {
+    version: '1.0',
+    exportDate: new Date().toISOString(),
+    templates: customOnly
+  };
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `acs_templates_${new Date().toISOString().split('T')[0]}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast(`已导出 ${customOnly.length} 个自定义模板`, 'success');
+}
+
+/**
+ * 导入模板
+ */
+function importTemplates() {
+  showModal({
+    title: '导入模板',
+    content: `
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:12px;">
+        选择之前导出的模板JSON文件，导入后将合并到当前自定义模板中。同名的模板会被跳过。
+      </p>
+      <div class="tpl-import-zone" onclick="document.getElementById('tpl-import-file').click()">
+        ${ICONS.import}
+        <p style="margin-top:8px;font-size:.85rem;">点击选择文件或拖拽JSON文件到此处</p>
+        <p style="font-size:.7rem;color:var(--muted);margin-top:4px;">支持 .json 格式</p>
+      </div>
+      <input type="file" id="tpl-import-file" accept=".json" style="display:none;" onchange="handleTplImport(event)">
+    `,
+    hideConfirm: true
+  });
+}
+
+/**
+ * 处理模板导入
+ */
+function handleTplImport(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      const templates = Array.isArray(data) ? data : (data.templates || []);
+      if (!Array.isArray(templates) || templates.length === 0) {
+        showToast('文件中没有有效的模板数据', 'error');
+        return;
+      }
+      let imported = 0;
+      let skipped = 0;
+      templates.forEach(t => {
+        // 校验必要字段
+        if (!t.name || !t.desc || !t.aspectRatio) {
+          skipped++;
+          return;
+        }
+        // 检查重名
+        const exists = getTemplates().find(x => x.name === t.name);
+        if (exists) {
+          skipped++;
+          return;
+        }
+        // 创建新模板
+        const newTpl = {
+          key: generateTemplateKey(t.name),
+          name: t.name,
+          desc: t.desc,
+          category: t.category || '其他',
+          aspectRatio: t.aspectRatio,
+          musicMood: t.musicMood || '轻快',
+          fps: t.fps || 30,
+          color: t.color || TEMPLATE_COLORS[0],
+          isBuiltin: false
+        };
+        state.customTemplates.unshift(newTpl);
+        imported++;
+      });
+      saveCustomTemplates();
+      closeModal();
+      renderTemplateManager(document.getElementById('shell-content'));
+      renderLandingTemplates();
+      showToast(`导入完成：成功 ${imported} 个，跳过 ${skipped} 个`, imported > 0 ? 'success' : 'info');
+    } catch (err) {
+      showToast('文件解析失败，请确认是有效的JSON文件', 'error');
+    }
+  };
+  reader.readAsText(file);
+}
+
+/**
+ * 确认弹窗
+ */
+function showConfirmModal(title, message, onConfirm) {
+  showModal({
+    title,
+    content: `<p style="font-size:.9rem;line-height:1.6;color:var(--muted);">${message}</p>`,
+    onConfirm: () => {
+      onConfirm();
+      return true;
+    }
+  });
+}
 
 const FEATURES = [
   { icon: "sparkles", title: "AI智能剪辑", desc: "用自然语言描述意图，AI自动理解并完成专业级剪辑", color: "rgba(124,58,237,.15)" },
   { icon: "wand", title: "一句话特效", desc: "描述想要的视觉风格，AI自动添加转场、滤镜、动效", color: "rgba(217,70,239,.15)" },
-  { icon: "film", title: "行业模板", desc: "12大行业专业模板，电商、婚礼、美食等场景开箱即用", color: "rgba(6,182,212,.15)" },
+  { icon: "film", title: "行业模板", desc: "多行业专业模板，电商、婚礼、美食等场景开箱即用，支持无限扩充", color: "rgba(6,182,212,.15)" },
   { icon: "cpu", title: "GPU加速渲染", desc: "支持NVIDIA/AMD GPU加速，4K视频渲染速度提升5倍", color: "rgba(245,158,11,.15)" },
   { icon: "layers", title: "多轨时间线", desc: "视频/音频/字幕/特效四轨编辑，精确到帧的控制", color: "rgba(16,185,129,.15)" },
   { icon: "globe", title: "云端协作", desc: "素材云端存储，支持多人实时协作，随时随地创作", color: "rgba(99,102,241,.15)" },
@@ -3246,6 +3819,7 @@ let state = {
   projects: [],
   assets: [],
   renders: [],
+  customTemplates: [],
   darkMode: true,
   currentShell: 'dashboard',
   assetFilter: 'all',
@@ -3264,6 +3838,7 @@ function init() {
   const savedAssets = localStorage.getItem('acs_assets');
   const savedRenders = localStorage.getItem('acs_renders');
   const savedTheme = localStorage.getItem('acs_theme');
+  const savedCustomTemplates = localStorage.getItem('acs_custom_templates');
 
   if (savedTheme) {
     state.darkMode = savedTheme === 'dark';
@@ -3275,6 +3850,7 @@ function init() {
   state.projects = savedProjects ? JSON.parse(savedProjects) : [...MOCK_PROJECTS];
   state.assets = savedAssets ? JSON.parse(savedAssets) : [...MOCK_ASSETS];
   state.renders = savedRenders ? JSON.parse(savedRenders) : [...MOCK_RENDERS];
+  state.customTemplates = savedCustomTemplates ? JSON.parse(savedCustomTemplates) : [];
 
   // 渲染落地页静态内容
   renderLandingFeatures();
@@ -3308,7 +3884,7 @@ function handleRoute() {
   } else if (hash.startsWith('#editor/')) {
     document.getElementById('page-editor').classList.add('active');
     renderEditor(hash.replace('#editor/', ''));
-  } else if (['#dashboard','#projects','#assets','#renders','#settings'].includes(hash)) {
+  } else if (['#dashboard','#projects','#assets','#renders','#templates','#settings'].includes(hash)) {
     if (!state.currentUser) { location.hash = '#login'; return; }
     document.getElementById('page-shell').classList.add('active');
     const shellName = hash.replace('#', '');
@@ -3333,15 +3909,18 @@ function renderLandingFeatures() {
 }
 
 function renderLandingTemplates() {
+  const allTemplates = getTemplates();
+  const titleEl = document.getElementById('landing-templates-title');
+  if (titleEl) titleEl.textContent = `${allTemplates.length}大行业模板`;
   const grid = document.getElementById('landing-templates');
-  grid.innerHTML = TEMPLATES.map(t => `
+  grid.innerHTML = allTemplates.map(t => `
     <div class="template-card" onclick="goToRegister('${t.name}')">
       <div class="tpl-icon" style="background:${t.color}20;color:${t.color};">
         ${ICONS.film}
       </div>
-      <h4>${t.name}</h4>
+      <h4>${t.name}${t.isBuiltin ? '' : '<span class="badge badge-green" style="font-size:.55rem;margin-left:4px;">自定义</span>'}</h4>
       <p class="tpl-desc">${t.desc}</p>
-      <p class="tpl-ratio">${t.aspectRatio}</p>
+      <p class="tpl-ratio">${t.aspectRatio}${t.musicMood ? ' · ' + t.musicMood : ''}</p>
     </div>
   `).join('');
 }
@@ -3401,7 +3980,7 @@ function toggleUserDropdown() {
 // ===== Shell 切换 =====
 function switchShell(name) {
   state.currentShell = name;
-  const titles = { dashboard:'仪表盘', projects:'项目管理', assets:'素材库', renders:'渲染队列', settings:'设置' };
+  const titles = { dashboard:'仪表盘', projects:'项目管理', assets:'素材库', renders:'渲染队列', templates:'行业模板管理', settings:'设置' };
   document.getElementById('shell-page-title').textContent = titles[name] || name;
   // 更新侧边栏激活状态
   document.querySelectorAll('.sidebar-nav-item').forEach(item => {
@@ -3412,7 +3991,8 @@ function switchShell(name) {
     case 'dashboard': renderDashboard(content); break;
     case 'projects': renderProjects(content); break;
     case 'assets': renderAssets(content); break;
-    case 'renders': renderRenders(content); break;
+    case 'renders': renderRenders(content); startRenderSimulation(); break;
+    case 'templates': renderTemplateManager(content); break;
     case 'settings': renderSettings(content); break;
   }
 }
@@ -3447,7 +4027,7 @@ function renderDashboard(el) {
       <h3>快速创建</h3>
       <div class="quick-create-grid">
         ${['vlog','ecommerce','wedding','food'].map(k => {
-          const t = TEMPLATES.find(x=>x.key===k);
+          const t = getTemplateByKey(k) || getTemplates()[0];
           return `<div class="quick-card" onclick="quickCreate('${k}')">
             <div style="color:${t.color}">${ICONS.film}</div>
             <h4>${t.name}</h4>
@@ -3482,7 +4062,7 @@ function renderDashboard(el) {
 }
 
 function renderProjectCard(p) {
-  const tpl = TEMPLATES.find(t => t.key === p.industryTemplate);
+  const tpl = getTemplateByKey(p.industryTemplate);
   const statusMap = { editing: {label:'编辑中', cls:'badge-purple'}, completed: {label:'已完成', cls:'badge-green'}, draft: {label:'草稿', cls:'badge-gray'}, rendering: {label:'渲染中', cls:'badge-yellow'} };
   const st = statusMap[p.status] || {label:p.status, cls:'badge-gray'};
   return `
@@ -3494,7 +4074,7 @@ function renderProjectCard(p) {
       <div class="project-info">
         <h4>${p.title}</h4>
         <div class="project-meta">
-          <span>${tpl ? tpl.name : ''}</span>
+          <span>${tpl ? tpl.name : '自由创作'}</span>
           <span>${p.resolution}</span>
           <span>${p.duration > 0 ? formatDuration(p.duration) : '未设置'}</span>
         </div>
@@ -3546,10 +4126,11 @@ function showNewProjectModal(templateKey) {
         <textarea class="input" id="new-proj-desc" rows="3" placeholder="描述你的视频项目" style="resize:vertical;"></textarea>
       </div>
       <div class="form-group">
-        <label>行业模板</label>
-        <div class="templates-grid" style="grid-template-columns:repeat(3,1fr);gap:8px;">
-          ${TEMPLATES.map(t => `
-            <div class="template-card tpl-selectable ${preselected===t.key?'selected':''}" data-tpl="${t.key}" onclick="selectTemplate(this)" style="padding:12px;${preselected===t.key?'border-color:var(--primary);background:rgba(124,58,237,.1);':''}">
+        <label>行业模板（共${getTemplates().length}个）</label>
+        <input class="input" id="proj-tpl-search" placeholder="搜索模板..." oninput="filterProjTemplates()" style="margin-bottom:8px;">
+        <div class="templates-grid" id="proj-tpl-grid" style="grid-template-columns:repeat(3,1fr);gap:8px;max-height:280px;overflow-y:auto;padding:4px;">
+          ${getTemplates().map(t => `
+            <div class="template-card tpl-selectable ${preselected===t.key?'selected':''}" data-tpl="${t.key}" data-name="${t.name}" onclick="selectTemplate(this)" style="padding:12px;${preselected===t.key?'border-color:var(--primary);background:rgba(124,58,237,.1);':''}">
               <h4 style="font-size:.8rem;">${t.name}</h4>
             </div>
           `).join('')}
@@ -3592,6 +4173,17 @@ function selectTemplate(el) {
   el.classList.add('selected');
   el.style.borderColor = 'var(--primary)';
   el.style.background = 'rgba(124,58,237,.1)';
+}
+
+/**
+ * 新建项目弹窗中的模板搜索过滤
+ */
+function filterProjTemplates() {
+  const q = (document.getElementById('proj-tpl-search')?.value || '').toLowerCase();
+  document.querySelectorAll('#proj-tpl-grid .tpl-selectable').forEach(el => {
+    const name = (el.dataset.name || '').toLowerCase();
+    el.style.display = name.includes(q) ? '' : 'none';
+  });
 }
 
 // ===== 素材库 =====
