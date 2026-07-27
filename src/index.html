@@ -429,7 +429,7 @@ input[type="file"] { display: none; }
   try {
     const client = await import('/@vite/client');
     const hmr = client.createHotContext('hmr-handler/fake.js');
-    hmr.on('vite:afterUpdate', window['__ICUBE_WEBVIEW_HMR_CALLBACK_1785145725803']);
+    hmr.on('vite:afterUpdate', window['__ICUBE_WEBVIEW_HMR_CALLBACK_1785151161830']);
   } catch {}
 })();</script><style>.buttonsCard-bTXa5j {
   padding: var(--spacer-4);
@@ -786,7 +786,7 @@ input[type="file"] { display: none; }
   try {
     const client = await import('/@vite/client');
     const hmr = client.createHotContext('hmr-handler/fake.js');
-    hmr.on('vite:afterUpdate', window['__ICUBE_WEBVIEW_HMR_CALLBACK_1785145725823']);
+    hmr.on('vite:afterUpdate', window['__ICUBE_WEBVIEW_HMR_CALLBACK_1785151161848']);
   } catch {}
 })();</script><style>.buttonsCard-bTXa5j {
   padding: var(--spacer-4);
@@ -2813,7 +2813,7 @@ input[type="file"] { display: none; }
   color: var(--trae-text-default);
   user-select: none;
 }
-</style><script src="https://unpkg.byted-static.com/jszip/3.10.1/dist/jszip.min.js"></script></head>
+</style></head>
 <body>
 <div class="app">
   <!-- Toolbar -->
@@ -3962,15 +3962,91 @@ function exportItemHD(item) {
   });
 }
 
-function downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+/* -------------------------------------------------------------------------- */
+/*  文件保存：优先使用 File System Access API 让用户选择保存位置，              */
+/*  不支持时降级为传统浏览器下载（保存到默认下载目录）                          */
+/*  兼容 PaKePlus / Tauri / Chrome / Edge 桌面环境                            */
+/* -------------------------------------------------------------------------- */
+
+// 检测是否在 PaKePlus/Tauri 桌面环境中
+function isDesktopApp() {
+  return !!(window.__TAURI_IPC__ || window.__TAURI__ || window.pakePlus || 
+           window.isPakeApp || navigator.userAgent.includes('Pake') ||
+           window.chrome && window.chrome.app && window.chrome.app.runtime);
+}
+
+// 检测是否支持 File System Access API（包括桌面应用环境）
+function hasFileSystemAccess() {
+  // PaKePlus (基于 Tauri) 支持这些API，安全上下文下可用
+  try {
+    return !!(window.showSaveFilePicker && window.isSecureContext);
+  } catch(e) {
+    return false;
+  }
+}
+
+// 检测是否支持目录选择
+function hasDirectoryPicker() {
+  try {
+    return !!(window.showDirectoryPicker && window.isSecureContext);
+  } catch(e) {
+    return false;
+  }
+}
+
+async function saveBlob(blob, suggestedName) {
+  // 优先使用 showSaveFilePicker（PaKePlus/Chrome/Edge 支持，可自定义保存路径）
+  if (hasFileSystemAccess()) {
+    try {
+      const ext = (suggestedName.split('.').pop() || 'png').toLowerCase();
+      const mimeTypes = {
+        'png': { mime: 'image/png', desc: 'PNG 图像' },
+        'jpg': { mime: 'image/jpeg', desc: 'JPEG 图像' },
+        'jpeg': { mime: 'image/jpeg', desc: 'JPEG 图像' },
+        'webp': { mime: 'image/webp', desc: 'WebP 图像' },
+        'bmp': { mime: 'image/bmp', desc: 'BMP 图像' }
+      };
+      const typeInfo = mimeTypes[ext] || mimeTypes['png'];
+      
+      const handle = await window.showSaveFilePicker({
+        suggestedName: suggestedName,
+        types: [{
+          description: typeInfo.desc,
+          accept: { [typeInfo.mime]: ['.' + ext] }
+        }],
+        excludeAcceptAllOption: false
+      });
+      
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return { success: true, method: 'picker' };
+    } catch (err) {
+      // 用户取消选择，不报错
+      if (err && err.name === 'AbortError') {
+        return { success: false, cancelled: true };
+      }
+      // 其他错误，尝试降级到传统下载
+      console.warn('File System Access API failed, falling back:', err);
+    }
+  }
+  
+  // 降级方案：传统下载（自动保存到默认下载目录）
+  try {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = suggestedName;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    return { success: true, method: 'download' };
+  } catch (err) {
+    console.error('Download fallback failed:', err);
+    return { success: false, error: err.message };
+  }
 }
 
 $('btnSaveHD').addEventListener('click', async () => {
@@ -3986,9 +4062,17 @@ $('btnSaveHD').addEventListener('click', async () => {
     toast('导出失败: ' + res.error);
     setStatus('导出失败');
   } else {
-    downloadBlob(res.blob, res.filename);
-    setStatus(`高清图像已导出 (${item.fullW}x${item.fullH})`);
-    toast(`高清图像已导出 (${item.fullW}x${item.fullH})`);
+    const result = await saveBlob(res.blob, res.filename);
+    if (result.success) {
+      const locationMsg = result.method === 'picker' ? '已保存到选择位置' : '已保存到下载目录';
+      setStatus(`高清图像已导出 (${item.fullW}x${item.fullH}) - ${locationMsg}`);
+      toast(`高清图像已导出 (${item.fullW}x${item.fullH})`);
+    } else if (result.cancelled) {
+      setStatus('已取消保存');
+    } else {
+      toast('保存失败: ' + (result.error || '未知错误'));
+      setStatus('保存失败');
+    }
   }
 });
 
@@ -4000,7 +4084,28 @@ $('btnBatchExport').addEventListener('click', async () => {
   const txt = $('bpText');
   overlay.classList.add('active');
   setProcessing(true);
-  let ok = 0, fail = 0;
+
+  // 尝试让用户选择保存文件夹（支持File System Access API时）
+  let dirHandle = null;
+  let useCustomDir = false;
+  
+  if (hasDirectoryPicker()) {
+    try {
+      dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+      useCustomDir = true;
+    } catch (err) {
+      // 用户取消或不支持，降级为传统下载
+      if (err && err.name === 'AbortError') {
+        // 用户取消了文件夹选择，仍然继续导出（使用下载方式）
+        useCustomDir = false;
+      } else {
+        console.warn('Directory picker failed, using download fallback:', err);
+        useCustomDir = false;
+      }
+    }
+  }
+
+  let ok = 0, fail = 0, skip = 0;
   for (let i = 0; i < state.images.length; i++) {
     const item = state.images[i];
     const pct = Math.round((i / state.images.length) * 100);
@@ -4010,16 +4115,50 @@ $('btnBatchExport').addEventListener('click', async () => {
     // 让出UI线程
     await new Promise(r => setTimeout(r, 5));
     const res = await exportItemHD(item);
-    if (res.error) { fail++; }
-    else { downloadBlob(res.blob, res.filename); ok++; }
-    // 短暂间隔避免浏览器下载阻塞
-    await new Promise(r => setTimeout(r, 100));
+    if (res.error) { 
+      fail++; 
+    } else {
+      try {
+        if (dirHandle && useCustomDir) {
+          // 保存到用户选择的文件夹
+          const fileHandle = await dirHandle.getFileHandle(res.filename, { create: true });
+          const writable = await fileHandle.createWritable();
+          await writable.write(res.blob);
+          await writable.close();
+          ok++;
+        } else {
+          // 使用saveBlob函数（支持单文件选择或传统下载）
+          // 批量导出时，如果不支持目录选择，为了避免多次弹出对话框，直接使用下载方式
+          const url = URL.createObjectURL(res.blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = res.filename;
+          link.style.display = 'none';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          setTimeout(() => URL.revokeObjectURL(url), 3000);
+          ok++;
+          // 下载间隔稍长，避免浏览器拦截
+          await new Promise(r => setTimeout(r, 300));
+        }
+      } catch (e) {
+        console.error('Save failed for', res.filename, e);
+        fail++;
+      }
+    }
+    // 短暂间隔避免阻塞
+    if (dirHandle && useCustomDir) {
+      await new Promise(r => setTimeout(r, 50));
+    }
   }
   fill.style.width = '100%';
-  txt.textContent = `完成！成功 ${ok} 张${fail ? '，失败 ' + fail + ' 张' : ''}`;
+  const doneMsg = `完成！成功 ${ok} 张${fail ? '，失败 ' + fail + ' 张' : ''}`;
+  txt.textContent = doneMsg;
   setProcessing(false);
-  setTimeout(() => overlay.classList.remove('active'), 1500);
-  setStatus(`批量导出完成：成功 ${ok} 张`);
+  setTimeout(() => overlay.classList.remove('active'), 2000);
+  const locationMsg = useCustomDir ? '（已保存到选择的文件夹）' : '（已保存到下载目录）';
+  setStatus(`批量导出完成：成功 ${ok} 张 ${locationMsg}`);
   toast(`批量导出完成：成功 ${ok} 张`);
 });
 
@@ -4120,6 +4259,8 @@ function createSlider(def, paramSetter) {
 
 const basicRefs = [];
 const basicContainer = $('basicSliders');
+// 清空容器，防止重复创建滑块
+basicContainer.innerHTML = '';
 basicDefs.forEach(def => {
   const { wrap } = createSlider(def);
   basicRefs.push({ key: def.key, wrap });
