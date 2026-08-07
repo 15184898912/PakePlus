@@ -1,0 +1,2022 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>云端AI智能MP3音频音量自动识别声音加大智能体系统 V1.0</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&amp;family=JetBrains+Mono:wght@400;500;700&amp;family=Outfit:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+/* ======================== 全局变量 ======================== */
+:root {
+  --bg-base: #0a0a14;
+  --bg-panel: #13131f;
+  --bg-card: #1a1a2e;
+  --bg-card-hover: #22223a;
+  --bg-input: #0f0f1a;
+  --accent: #7c6ff7;
+  --accent-glow: rgba(124,111,247,.35);
+  --accent-cyan: #00e5ff;
+  --accent-cyan-glow: rgba(0,229,255,.25);
+  --text: #e8e8f0;
+  --text-dim: #8888a0;
+  --text-faint: #555568;
+  --success: #00ff88;
+  --warning: #ffaa00;
+  --error: #ff4466;
+  --border: rgba(124,111,247,.15);
+  --border-bright: rgba(124,111,247,.4);
+  --radius: 10px;
+  --radius-sm: 6px;
+  --shadow: 0 8px 32px rgba(0,0,0,.4);
+  --transition: .2s cubic-bezier(.4,0,.2,1);
+}
+
+/* ======================== 重置 ======================== */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{
+  font-family:'Outfit',sans-serif;
+  background:var(--bg-base);
+  color:var(--text);
+  font-size:14px;
+  line-height:1.5;
+  user-select:none;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* 背景纹理 */
+body::before{
+  content:'';position:fixed;inset:0;z-index:-1;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 0%,rgba(124,111,247,.08),transparent),
+    radial-gradient(ellipse 60% 40% at 80% 100%,rgba(0,229,255,.06),transparent);
+}
+body::after{
+  content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .015 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ======================== 布局 ======================== */
+#app{display:flex;flex-direction:column;height:100vh}
+
+/* ======================== 顶部标题栏 ======================== */
+#header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 24px;
+  background:linear-gradient(135deg,rgba(26,26,46,.95),rgba(19,19,31,.95));
+  border-bottom:1px solid var(--border);
+  backdrop-filter:blur(20px);
+  flex-shrink:0;
+}
+#header .logo{display:flex;align-items:center;gap:14px}
+#header .logo-icon{
+  width:42px;height:42px;border-radius:var(--radius-sm);
+  background:linear-gradient(135deg,var(--accent),var(--accent-cyan));
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;box-shadow:0 0 20px var(--accent-glow);
+  position:relative;overflow:hidden;
+}
+#header .logo-icon::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(45deg,transparent 40%,rgba(255,255,255,.2) 50%,transparent 60%);
+  animation:shimmer 3s infinite;
+}
+@keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+#header h1{
+  font-family:'Bricolage Grotesque',sans-serif;
+  font-size:18px;font-weight:800;letter-spacing:-.02em;
+  background:linear-gradient(90deg,var(--text),var(--accent));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+#header .version{
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;color:var(--accent);padding:3px 10px;
+  background:rgba(124,111,247,.12);border:1px solid var(--border-bright);
+  border-radius:20px;
+}
+#header .header-right{display:flex;align-items:center;gap:16px}
+#ai-status{
+  display:flex;align-items:center;gap:6px;
+  font-size:12px;color:var(--text-dim);
+  font-family:'JetBrains Mono',monospace;
+}
+#ai-status .dot{
+  width:8px;height:8px;border-radius:50%;
+  background:var(--success);box-shadow:0 0 8px var(--success);
+  animation:pulse 2s infinite;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+/* ======================== 工具栏 ======================== */
+#toolbar{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 24px;
+  background:var(--bg-panel);
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;flex-wrap:wrap;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 16px;
+  font-family:'Outfit',sans-serif;font-size:13px;font-weight:500;
+  color:var(--text);
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  cursor:pointer;transition:var(--transition);
+  white-space:nowrap;
+}
+.btn:hover{
+  background:var(--bg-card-hover);
+  border-color:var(--border-bright);
+  transform:translateY(-1px);
+  box-shadow:0 4px 16px rgba(0,0,0,.3);
+}
+.btn:active{transform:translateY(0)}
+.btn.primary{
+  background:linear-gradient(135deg,var(--accent),#6a5ce7);
+  border-color:transparent;color:#fff;
+  box-shadow:0 4px 20px var(--accent-glow);
+}
+.btn.primary:hover{box-shadow:0 6px 28px var(--accent-glow);transform:translateY(-2px)}
+.btn.ghost{background:transparent}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important;box-shadow:none!important}
+.btn .icon{font-size:15px}
+.toolbar-spacer{flex:1}
+#file-count-badge{
+  font-family:'JetBrains Mono',monospace;font-size:12px;
+  color:var(--text-dim);padding:4px 12px;
+  background:var(--bg-input);border-radius:20px;
+}
+
+/* ======================== 主区域 ======================== */
+#main{
+  display:flex;flex:1;overflow:hidden;
+  padding:16px;gap:16px;
+}
+#left-panel{
+  flex:1;display:flex;flex-direction:column;
+  background:var(--bg-panel);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  overflow:hidden;min-width:0;
+}
+#right-panel{
+  width:360px;flex-shrink:0;
+  display:flex;flex-direction:column;gap:12px;
+  overflow-y:auto;
+  padding-right:4px;
+}
+#right-panel::-webkit-scrollbar{width:6px}
+#right-panel::-webkit-scrollbar-track{background:transparent}
+#right-panel::-webkit-scrollbar-thumb{background:var(--border-bright);border-radius:3px}
+
+/* ======================== 文件表格 ======================== */
+#table-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;
+  border-bottom:1px solid var(--border);
+}
+#table-header h2{
+  font-family:'Bricolage Grotesque',sans-serif;
+  font-size:14px;font-weight:600;
+}
+#table-header .actions{display:flex;gap:6px}
+#table-header .actions button{
+  padding:4px 10px;font-size:12px;
+  background:transparent;border:1px solid var(--border);
+  color:var(--text-dim);border-radius:var(--radius-sm);
+  cursor:pointer;transition:var(--transition);
+  font-family:'Outfit',sans-serif;
+}
+#table-header .actions button:hover{
+  color:var(--error);border-color:var(--error);
+}
+
+#file-table-wrap{flex:1;overflow:auto;position:relative}
+#file-table-wrap::-webkit-scrollbar{width:6px;height:6px}
+#file-table-wrap::-webkit-scrollbar-track{background:transparent}
+#file-table-wrap::-webkit-scrollbar-thumb{background:var(--border-bright);border-radius:3px}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead{position:sticky;top:0;z-index:2}
+thead th{
+  background:var(--bg-card);
+  padding:10px 12px;text-align:left;
+  font-weight:600;font-size:11px;
+  text-transform:uppercase;letter-spacing:.05em;
+  color:var(--text-dim);
+  border-bottom:1px solid var(--border);
+  white-space:nowrap;
+}
+tbody tr{
+  cursor:pointer;transition:var(--transition);
+  border-bottom:1px solid rgba(124,111,247,.06);
+}
+tbody tr:hover{background:var(--bg-card)}
+tbody tr.selected{background:rgba(124,111,247,.12);box-shadow:inset 3px 0 0 var(--accent)}
+tbody tr.processing{background:rgba(0,229,255,.08)}
+tbody tr.done{background:rgba(0,255,136,.05)}
+tbody tr.failed{background:rgba(255,68,102,.05)}
+td{padding:10px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+td.col-idx{color:var(--text-faint);font-family:'JetBrains Mono',monospace;width:40px;text-align:center}
+td.col-name{max-width:200px}
+td.col-dur,td.col-vol,td.col-gain{font-family:'JetBrains Mono',monospace;text-align:right}
+td.col-status{font-family:'JetBrains Mono',monospace;font-size:12px}
+.status-pending{color:var(--text-faint)}
+.status-processing{color:var(--accent-cyan)}
+.status-done{color:var(--success)}
+.status-failed{color:var(--error)}
+
+/* 空状态 */
+#empty-state{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:16px;color:var(--text-faint);
+}
+#empty-state .icon{font-size:64px;opacity:.3}
+#empty-state p{font-size:14px;text-align:center;max-width:300px}
+#empty-state .hint{font-size:12px;color:var(--text-faint)}
+
+/* 拖拽提示 */
+.drag-over{background:rgba(124,111,247,.08)!important;border:2px dashed var(--accent)!important}
+
+/* ======================== 详情面板 ======================== */
+.detail-card{
+  background:var(--bg-panel);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:14px 16px;
+}
+.detail-card h3{
+  font-family:'Bricolage Grotesque',sans-serif;
+  font-size:12px;font-weight:600;
+  text-transform:uppercase;letter-spacing:.06em;
+  color:var(--text-dim);
+  margin-bottom:10px;
+  display:flex;align-items:center;gap:6px;
+}
+.detail-card h3 .badge{
+  font-size:10px;padding:2px 7px;border-radius:10px;
+  font-family:'JetBrains Mono',monospace;font-weight:400;
+}
+.badge-ai{background:rgba(124,111,247,.15);color:var(--accent)}
+.badge-local{background:rgba(0,229,255,.1);color:var(--accent-cyan)}
+
+.metric-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:5px 0;
+  border-bottom:1px solid rgba(124,111,247,.06);
+}
+.metric-row:last-child{border-bottom:none}
+.metric-label{font-size:12px;color:var(--text-dim)}
+.metric-value{
+  font-family:'JetBrains Mono',monospace;
+  font-size:13px;font-weight:500;
+}
+.metric-value.good{color:var(--success)}
+.metric-value.warn{color:var(--warning)}
+.metric-value.bad{color:var(--error)}
+
+/* 滑块区域 */
+.slider-section{padding:14px 16px}
+.slider-row{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.slider-row label{font-size:12px;color:var(--text-dim);min-width:70px}
+.slider-row .value-display{
+  font-family:'JetBrains Mono',monospace;
+  font-size:14px;font-weight:600;color:var(--accent);
+  min-width:60px;text-align:right;
+}
+input[type=range]{
+  -webkit-appearance:none;flex:1;height:4px;
+  background:var(--bg-input);border-radius:2px;outline:none;
+  cursor:pointer;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:16px;height:16px;
+  background:var(--accent);border-radius:50%;cursor:pointer;
+  box-shadow:0 0 10px var(--accent-glow);
+  transition:var(--transition);
+}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2)}
+input[type=range]::-moz-range-thumb{
+  width:16px;height:16px;background:var(--accent);
+  border:none;border-radius:50%;cursor:pointer;
+}
+
+input[type=number]{
+  width:70px;padding:5px 8px;
+  background:var(--bg-input);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  color:var(--text);
+  font-family:'JetBrains Mono',monospace;
+  font-size:13px;outline:none;
+  transition:var(--transition);
+}
+input[type=number]:focus{border-color:var(--accent)}
+
+select{
+  padding:6px 10px;
+  background:var(--bg-input);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  color:var(--text);
+  font-family:'Outfit',sans-serif;
+  font-size:12px;outline:none;cursor:pointer;
+  transition:var(--transition);
+}
+select:focus{border-color:var(--accent)}
+
+/* 复选框 */
+.checkbox-row{
+  display:flex;align-items:center;gap:8px;
+  padding:6px 0;cursor:pointer;
+}
+.checkbox-row input[type=checkbox]{
+  appearance:none;width:18px;height:18px;
+  border:2px solid var(--border-bright);
+  border-radius:4px;cursor:pointer;
+  position:relative;transition:var(--transition);
+}
+.checkbox-row input[type=checkbox]:checked{
+  background:var(--accent);border-color:var(--accent);
+}
+.checkbox-row input[type=checkbox]:checked::after{
+  content:'';position:absolute;
+  left:5px;top:1px;width:5px;height:10px;
+  border:solid #fff;border-width:0 2px 2px 0;
+  transform:rotate(45deg);
+}
+.checkbox-row span{font-size:12px;color:var(--text)}
+
+/* 警告文字 */
+#warning-text{
+  display:none;
+  padding:8px 12px;margin-top:8px;
+  background:rgba(255,170,0,.1);
+  border:1px solid rgba(255,170,0,.3);
+  border-radius:var(--radius-sm);
+  color:var(--warning);font-size:12px;
+  animation:warningPulse 1.5s infinite;
+}
+@keyframes warningPulse{0%,100%{opacity:1}50%{opacity:.7}}
+
+/* ======================== 底部状态栏 ======================== */
+#footer{
+  display:flex;align-items:center;gap:16px;
+  padding:10px 24px;
+  background:var(--bg-panel);
+  border-top:1px solid var(--border);
+  flex-shrink:0;
+}
+#progress-bar{
+  flex:1;height:6px;
+  background:var(--bg-input);
+  border-radius:3px;overflow:hidden;
+  position:relative;
+}
+#progress-fill{
+  height:100%;width:0%;
+  background:linear-gradient(90deg,var(--accent),var(--accent-cyan));
+  border-radius:3px;
+  transition:width .3s ease;
+  box-shadow:0 0 10px var(--accent-glow);
+}
+#status-text{
+  font-size:12px;color:var(--text-dim);
+  font-family:'JetBrains Mono',monospace;
+  white-space:nowrap;
+}
+#progress-count{
+  font-family:'JetBrains Mono',monospace;
+  font-size:12px;color:var(--text-dim);
+  white-space:nowrap;
+}
+
+/* ======================== 设置弹窗 ======================== */
+.modal-overlay{
+  position:fixed;inset:0;z-index:100;
+  background:rgba(0,0,0,.6);backdrop-filter:blur(4px);
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;transition:opacity .25s;
+}
+.modal-overlay.active{opacity:1;pointer-events:auto}
+.modal{
+  background:var(--bg-panel);
+  border:1px solid var(--border-bright);
+  border-radius:var(--radius);
+  padding:24px;width:480px;max-width:90vw;
+  box-shadow:var(--shadow);
+  transform:scale(.95);transition:transform .25s;
+}
+.modal-overlay.active .modal{transform:scale(1)}
+.modal h2{
+  font-family:'Bricolage Grotesque',sans-serif;
+  font-size:18px;font-weight:600;margin-bottom:16px;
+}
+.modal-section{margin-bottom:18px}
+.modal-section h4{
+  font-size:12px;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--text-dim);margin-bottom:8px;
+}
+.modal input[type=text],.modal input[type=password]{
+  width:100%;padding:8px 10px;
+  background:var(--bg-input);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  color:var(--text);font-size:13px;outline:none;
+  font-family:'Outfit',sans-serif;
+  transition:var(--transition);
+}
+.modal input[type=text]:focus,.modal input[type=password]:focus{border-color:var(--accent)}
+.modal .field{margin-bottom:10px}
+.modal .field label{display:block;font-size:12px;color:var(--text-dim);margin-bottom:4px}
+.modal .field-row{display:flex;gap:8px}
+.modal .field-row .btn{flex-shrink:0}
+.modal-footer{
+  display:flex;justify-content:flex-end;gap:8px;
+  margin-top:18px;padding-top:16px;
+  border-top:1px solid var(--border);
+}
+
+/* ======================== Toast 通知 ======================== */
+#toast-container{
+  position:fixed;top:80px;right:24px;z-index:200;
+  display:flex;flex-direction:column;gap:8px;
+  pointer-events:none;
+}
+.toast{
+  padding:12px 20px;
+  background:var(--bg-card);
+  border:1px solid var(--border-bright);
+  border-radius:var(--radius-sm);
+  box-shadow:var(--shadow);
+  font-size:13px;max-width:380px;
+  display:flex;align-items:center;gap:10px;
+  animation:toastIn .3s ease,toastOut .3s ease 3s forwards;
+  pointer-events:auto;
+}
+.toast.success{border-color:var(--success);color:var(--success)}
+.toast.error{border-color:var(--error);color:var(--error)}
+.toast.warning{border-color:var(--warning);color:var(--warning)}
+.toast.info{border-color:var(--accent);color:var(--accent)}
+@keyframes toastIn{from{transform:translateX(120%);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes toastOut{to{transform:translateX(120%);opacity:0}}
+
+/* ======================== 频谱可视化 ======================== */
+#spectrum-canvas{
+  width:100%;height:60px;
+  border-radius:var(--radius-sm);
+  background:var(--bg-input);
+  margin-top:8px;
+}
+
+/* ======================== 加载动画 ======================== */
+.spinner{
+  display:inline-block;width:14px;height:14px;
+  border:2px solid var(--border-bright);
+  border-top-color:var(--accent);
+  border-radius:50%;
+  animation:spin .6s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* 响应式 */
+@media(max-width:900px){
+  #right-panel{width:300px}
+  #header h1{font-size:14px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ======================== 顶部标题栏 ======================== -->
+  <header id="header">
+    <div class="logo">
+      <div class="logo-icon">🎵</div>
+      <div>
+        <h1>云端AI智能MP3音频音量自动识别声音加大智能体系统</h1>
+        <div style="font-size:10px;color:var(--text-faint);margin-top:2px">Cloud AI Audio Volume Enhancer</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <span id="ai-status"><span class="dot"></span>本地智能模式</span>
+      <span class="version">V1.0</span>
+    </div>
+  </header>
+
+  <!-- ======================== 工具栏 ======================== -->
+  <nav id="toolbar">
+    <button class="btn primary" id="btn-import"><span class="icon">📂</span> 导入音频</button>
+    <button class="btn" id="btn-folder"><span class="icon">📁</span> 批量导入文件夹</button>
+    <button class="btn primary" id="btn-process"><span class="icon">⚡</span> 开始智能处理</button>
+    <button class="btn" id="btn-export"><span class="icon">💾</span> 导出全部</button>
+    <div class="toolbar-spacer"></div>
+    <button class="btn ghost" id="btn-settings"><span class="icon">⚙</span> 设置</button>
+    <span id="file-count-badge">0 个文件</span>
+    <input type="file" id="file-input" accept=".mp3,.wav,.flac,.ogg,.m4a,.aac,audio/*" multiple="" style="display:none">
+    <input type="file" id="folder-input" webkitdirectory="" style="display:none">
+  </nav>
+
+  <!-- ======================== 主区域 ======================== -->
+  <div id="main">
+    <!-- 左栏：文件列表 -->
+    <div id="left-panel">
+      <div id="table-header">
+        <h2>📄 文件列表</h2>
+        <div class="actions">
+          <button id="btn-delete-sel">删除选中</button>
+          <button id="btn-clear">清空列表</button>
+        </div>
+      </div>
+      <div id="file-table-wrap">
+        <table id="file-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>文件名</th>
+              <th>时长</th>
+              <th>当前音量(dB)</th>
+              <th>推荐增益(dB)</th>
+              <th>状态</th>
+            </tr>
+          </thead>
+          <tbody id="file-table-body"></tbody>
+        </table>
+        <div id="empty-state">
+          <div class="icon">🎵</div>
+          <p>拖拽音频文件到此处，或点击"导入音频"按钮</p>
+          <p class="hint">支持 MP3 / WAV / FLAC / OGG / M4A / AAC 格式</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右栏：详情与预览 -->
+    <div id="right-panel">
+
+      <!-- 分析信息 -->
+      <div class="detail-card" id="analysis-card" style="display:none">
+        <h3>📊 音频分析信息</h3>
+        <div class="metric-row"><span class="metric-label">峰值电平</span><span class="metric-value" id="m-peak">-</span></div>
+        <div class="metric-row"><span class="metric-label">RMS响度</span><span class="metric-value" id="m-rms">-</span></div>
+        <div class="metric-row"><span class="metric-label">动态范围</span><span class="metric-value" id="m-dr">-</span></div>
+        <div class="metric-row"><span class="metric-label">峰值因子</span><span class="metric-value" id="m-crest">-</span></div>
+        <div class="metric-row"><span class="metric-label">近似LUFS</span><span class="metric-value" id="m-lufs">-</span></div>
+        <div class="metric-row"><span class="metric-label">削波检测</span><span class="metric-value" id="m-clip">-</span></div>
+        <canvas id="spectrum-canvas"></canvas>
+      </div>
+
+      <!-- AI建议 -->
+      <div class="detail-card" id="ai-card" style="display:none">
+        <h3>🧠 AI智能体建议 <span class="badge badge-local" id="ai-badge">本地</span></h3>
+        <div class="metric-row"><span class="metric-label">推荐增益</span><span class="metric-value" id="ai-gain">-</span></div>
+        <div class="metric-row"><span class="metric-label">压缩比</span><span class="metric-value" id="ai-ratio">-</span></div>
+        <div class="metric-row"><span class="metric-label">限幅 Ceiling</span><span class="metric-value" id="ai-ceiling">-</span></div>
+        <div class="metric-row"><span class="metric-label">EQ 高频调整</span><span class="metric-value" id="ai-eq">-</span></div>
+        <div class="metric-row"><span class="metric-label">音质预测</span><span class="metric-value" id="ai-quality" style="font-size:12px">-</span></div>
+        <div id="ai-warnings" style="margin-top:6px;font-size:11px;color:var(--warning)"></div>
+      </div>
+
+      <!-- 手动微调 -->
+      <div class="detail-card slider-section">
+        <h3>🎯 手动微调</h3>
+        <div class="slider-row">
+          <label>增益滑块</label>
+          <input type="range" id="gain-slider" min="0" max="12" step="0.5" value="0">
+          <span class="value-display" id="gain-display">+0.0 dB</span>
+        </div>
+        <div class="slider-row">
+          <label>精确增益</label>
+          <input type="number" id="gain-input" min="-6" max="18" step="0.1" value="0">
+          <span style="font-size:11px;color:var(--text-faint)">dB</span>
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="ai-guard-check" checked="">
+          <span>AI防失真保护</span>
+        </div>
+        <div class="slider-row" style="margin-top:4px">
+          <label>处理模式</label>
+          <select id="mode-select">
+            <option value="-14">标准模式 (-14 LUFS)</option>
+            <option value="-9">增强模式 (-9 LUFS)</option>
+            <option value="-6">极限模式 (-6 LUFS)</option>
+          </select>
+        </div>
+        <div class="slider-row">
+          <label>输出比特率</label>
+          <select id="bitrate-select">
+            <option value="keep">保持原始</option>
+            <option value="320">320 kbps</option>
+            <option value="256">256 kbps</option>
+            <option value="192">192 kbps</option>
+          </select>
+        </div>
+        <div id="warning-text">⚠ 当前增益可能导致失真，AI防失真保护已自动介入</div>
+      </div>
+
+      <!-- 音质评估报告 -->
+      <div class="detail-card" id="quality-card" style="display:none">
+        <h3>🔧 音质评估报告</h3>
+        <div class="metric-row"><span class="metric-label">原始THD</span><span class="metric-value" id="q-thd-orig">-</span></div>
+        <div class="metric-row"><span class="metric-label">处理后THD</span><span class="metric-value" id="q-thd-proc">-</span></div>
+        <div class="metric-row"><span class="metric-label">THD变化</span><span class="metric-value" id="q-thd-change">-</span></div>
+        <div class="metric-row"><span class="metric-label">信噪比</span><span class="metric-value" id="q-snr">-</span></div>
+        <div class="metric-row"><span class="metric-label">频谱偏差</span><span class="metric-value" id="q-deviation">-</span></div>
+        <div class="metric-row"><span class="metric-label">验证结果</span><span class="metric-value" id="q-passed">-</span></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======================== 底部状态栏 ======================== -->
+  <footer id="footer">
+    <div id="progress-bar"><div id="progress-fill"></div></div>
+    <span id="status-text">就绪</span>
+    <span id="progress-count">0 / 0</span>
+  </footer>
+
+</div>
+
+<!-- ======================== 设置弹窗 ======================== -->
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal">
+    <h2>⚙ 设置</h2>
+    <div class="modal-section">
+      <h4>AI接口配置</h4>
+      <div class="field">
+        <label>API密钥</label>
+        <input type="password" id="set-api-key" placeholder="sk-...">
+      </div>
+      <div class="field">
+        <label>API地址</label>
+        <input type="text" id="set-api-url" value="https://api.openai.com/v1">
+      </div>
+      <div class="field">
+        <label>模型名称</label>
+        <input type="text" id="set-model" value="gpt-4o">
+      </div>
+      <div class="field">
+        <button class="btn" id="btn-test-conn" style="width:100%">测试连接</button>
+      </div>
+    </div>
+    <div class="modal-section">
+      <h4>输出设置</h4>
+      <div class="field">
+        <label>默认保存路径</label>
+        <div class="field-row">
+          <input type="text" id="set-output-dir" placeholder="留空则使用下载文件夹">
+          <button class="btn" id="btn-choose-dir">浏览</button>
+        </div>
+      </div>
+    </div>
+    <div class-modal-section="">
+      <h4>音质参数</h4>
+      <div class="checkbox-row">
+        <input type="checkbox" id="set-guard" checked="">
+        <span>默认启用AI防失真保护</span>
+      </div>
+      <div class="field" style="margin-top:8px">
+        <label>最大增益值: <span id="set-max-gain-val" style="color:var(--accent)">12</span> dB</label>
+        <input type="range" id="set-max-gain" min="1" max="20" step="1" value="12" style="width:100%">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="btn-settings-cancel">取消</button>
+      <button class="btn primary" id="btn-settings-ok">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======================== Toast容器 ======================== -->
+<div id="toast-container"></div>
+
+<script>
+'use strict';
+
+/* ================================================================
+ * 常量定义
+ * ================================================================ */
+const EPSILON = 1e-10;
+const SUPPORTED_EXT = ['.mp3','.wav','.flac','.ogg','.m4a','.aac'];
+const MAX_GAIN_DB = 12;
+
+/* ================================================================
+ * 全局状态
+ * ================================================================ */
+const state = {
+  audioCtx: null,
+  files: [],          // {id, file, name, audioBuffer, analysis, aiSuggestion, status, result, selected}
+  selectedId: null,
+  isProcessing: false,
+  config: {
+    ai_api_key: '',
+    ai_api_base_url: 'https://api.openai.com/v1',
+    ai_model_name: 'gpt-4o',
+    default_output_dir: '',
+    default_bitrate: 'keep_original',
+    default_mode: 'standard',
+    ai_guard_enabled: true,
+    max_gain_db: 12,
+    theme: 'dark'
+  },
+  nextId: 1
+};
+
+/* ================================================================
+ * 音频引擎 - 分析模块
+ * ================================================================ */
+const AudioAnalyzer = {
+
+  /** 初始化AudioContext */
+  initContext() {
+    if (!state.audioCtx) {
+      state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (state.audioCtx.state === 'suspended') {
+      state.audioCtx.resume();
+    }
+    return state.audioCtx;
+  },
+
+  /** 解码音频文件 */
+  async decodeFile(file) {
+    const ctx = this.initContext();
+    const arrayBuffer = await file.arrayBuffer();
+    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+    return audioBuffer;
+  },
+
+  /** 获取单声道PCM数据 */
+  getChannelData(audioBuffer) {
+    if (audioBuffer.numberOfChannels === 1) {
+      return audioBuffer.getChannelData(0);
+    }
+    // 多声道混合为单声道
+    const ch0 = audioBuffer.getChannelData(0);
+    const ch1 = audioBuffer.numberOfChannels > 1 ? audioBuffer.getChannelData(1) : null;
+    const mono = new Float32Array(ch0.length);
+    for (let i = 0; i < ch0.length; i++) {
+      mono[i] = ch1 ? (ch0[i] + ch1[i]) * 0.5 : ch0[i];
+    }
+    return mono;
+  },
+
+  /** 音量分析 */
+  analyzeVolume(channelData, sampleRate) {
+    let peak = 0, sumSq = 0, clipped = 0;
+    const len = channelData.length;
+
+    // 分块处理避免长时间阻塞
+    for (let i = 0; i < len; i++) {
+      const abs = Math.abs(channelData[i]);
+      if (abs > peak) peak = abs;
+      sumSq += channelData[i] * channelData[i];
+      if (abs >= 0.999) clipped++;
+    }
+
+    const rms = Math.sqrt(sumSq / (len + EPSILON));
+    const peakDb = 20 * Math.log10(peak + EPSILON);
+    const rmsDb = 20 * Math.log10(rms + EPSILON);
+    const dynamicRangeDb = peakDb - rmsDb;
+    const crestFactor = peak / (rms + EPSILON);
+    const loudnessLufs = rmsDb - 0.691; // 近似LUFS
+
+    return {
+      peakDb, rmsDb, dynamicRangeDb, crestFactor, loudnessLufs,
+      clippedSamples: clipped, hasClipping: clipped > 0,
+      clipRatio: clipped / len
+    };
+  },
+
+  /** 频谱分析 - 简化FFT */
+  analyzeSpectrum(channelData, sampleRate) {
+    // 取前8192个样本进行FFT
+    const fftSize = 8192;
+    const len = Math.min(fftSize, channelData.length);
+    const real = new Float32Array(fftSize);
+    const imag = new Float32Array(fftSize);
+
+    // 应用汉宁窗
+    for (let i = 0; i < len; i++) {
+      const window = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (len - 1));
+      real[i] = channelData[i] * window;
+    }
+
+    // Cooley-Tukey FFT
+    this._fft(real, imag);
+
+    // 计算幅度谱
+    const halfSize = fftSize / 2;
+    const frequencies = new Float32Array(halfSize);
+    const magnitudes = new Float32Array(halfSize);
+    const dbSpectrum = new Float32Array(halfSize);
+
+    for (let i = 0; i < halfSize; i++) {
+      frequencies[i] = i * sampleRate / fftSize;
+      magnitudes[i] = Math.sqrt(real[i] * real[i] + imag[i] * imag[i]);
+      dbSpectrum[i] = 20 * Math.log10(magnitudes[i] + EPSILON);
+    }
+
+    return { frequencies, magnitudes, dbSpectrum };
+  },
+
+  /** 削波检测 */
+  detectClipping(channelData) {
+    let clipped = 0;
+    const positions = [];
+    for (let i = 0; i < channelData.length; i++) {
+      if (Math.abs(channelData[i]) >= 0.999) {
+        clipped++;
+        if (positions.length < 1000) positions.push(i);
+      }
+    }
+    return {
+      clippedSamples: clipped,
+      clipRatio: clipped / channelData.length,
+      hasClipping: clipped > 0,
+      clipPositions: positions
+    };
+  },
+
+  /** 推荐增益计算 */
+  getRecommendedGain(analysis, targetLufs = -14) {
+    const currentLufs = analysis.loudnessLufs;
+    let recommended = targetLufs - currentLufs;
+    const warnings = [];
+
+    // 限制最大增益
+    if (recommended > MAX_GAIN_DB) {
+      recommended = MAX_GAIN_DB;
+      warnings.push('已达最大增益限制');
+    }
+    if (recommended < 0) {
+      recommended = 0;
+      warnings.push('音频已达到目标响度，无需增大');
+    }
+
+    // 削波检测时降低增益
+    if (analysis.hasClipping) {
+      recommended = Math.max(0, recommended - 3);
+      warnings.push('检测到削波失真，已自动降低增益3dB');
+    }
+
+    return {
+      recommendedGainDb: recommended,
+      targetLufs,
+      currentLufs,
+      warnings,
+      hasClipping: analysis.hasClipping
+    };
+  },
+
+  /** 内部FFT实现 */
+  _fft(real, imag) {
+    const n = real.length;
+    // 位反转
+    for (let i = 1, j = 0; i < n; i++) {
+      let bit = n >> 1;
+      for (; j & bit; bit >>= 1) j ^= bit;
+      j ^= bit;
+      if (i < j) {
+        [real[i], real[j]] = [real[j], real[i]];
+        [imag[i], imag[j]] = [imag[j], imag[i]];
+      }
+    }
+    // 蝶形运算
+    for (let len = 2; len <= n; len <<= 1) {
+      const angle = -2 * Math.PI / len;
+      const wReal = Math.cos(angle);
+      const wImag = Math.sin(angle);
+      for (let i = 0; i < n; i += len) {
+        let cReal = 1, cImag = 0;
+        const half = len >> 1;
+        for (let j = 0; j < half; j++) {
+          const uReal = real[i + j], uImag = imag[i + j];
+          const vReal = real[i + j + half] * cReal - imag[i + j + half] * cImag;
+          const vImag = real[i + j + half] * cImag + imag[i + j + half] * cReal;
+          real[i + j] = uReal + vReal;
+          imag[i + j] = uImag + vImag;
+          real[i + j + half] = uReal - vReal;
+          imag[i + j + half] = uImag - vImag;
+          const nReal = cReal * wReal - cImag * wImag;
+          cImag = cReal * wImag + cImag * wReal;
+          cReal = nReal;
+        }
+      }
+    }
+  }
+};
+
+/* ================================================================
+ * 音频处理模块
+ * ================================================================ */
+const AudioProcessor = {
+
+  /** 应用增益 */
+  applyGain(samples, gainDb) {
+    const factor = Math.pow(10, gainDb / 20);
+    const result = new Float32Array(samples.length);
+    for (let i = 0; i < samples.length; i++) {
+      result[i] = samples[i] * factor;
+    }
+    return result;
+  },
+
+  /** 软限幅 (tanh) */
+  applySoftClip(samples, threshold = 0.95) {
+    const result = new Float32Array(samples.length);
+    for (let i = 0; i < samples.length; i++) {
+      const scaled = samples[i] / threshold;
+      result[i] = Math.tanh(scaled) * threshold;
+    }
+    return result;
+  },
+
+  /** 动态压缩器 */
+  applyCompression(samples, thresholdDb, ratio, attackMs, releaseMs, sampleRate) {
+    const threshold = Math.pow(10, thresholdDb / 20);
+    const attackCoef = Math.exp(-1 / (attackMs * 0.001 * sampleRate));
+    const releaseCoef = Math.exp(-1 / (releaseMs * 0.001 * sampleRate));
+    let envelope = 0;
+    const result = new Float32Array(samples.length);
+
+    for (let i = 0; i < samples.length; i++) {
+      const input = Math.abs(samples[i]);
+      if (input > envelope) {
+        envelope = attackCoef * envelope + (1 - attackCoef) * input;
+      } else {
+        envelope = releaseCoef * envelope + (1 - releaseCoef) * input;
+      }
+      let gain = 1.0;
+      if (envelope > threshold) {
+        const excessDb = 20 * Math.log10(envelope / threshold + EPSILON);
+        const reductionDb = excessDb * (1 - 1 / ratio);
+        gain = Math.pow(10, -reductionDb / 20);
+      }
+      result[i] = samples[i] * gain;
+    }
+    return result;
+  },
+
+  /** 砖墙限幅器 */
+  applyLimiter(samples, ceilingDb = -0.5) {
+    const ceiling = Math.pow(10, ceilingDb / 20);
+    const result = new Float32Array(samples.length);
+    for (let i = 0; i < samples.length; i++) {
+      if (samples[i] > ceiling) result[i] = ceiling;
+      else if (samples[i] < -ceiling) result[i] = -ceiling;
+      else result[i] = samples[i];
+    }
+    return result;
+  },
+
+  /** 削波检测与修复 */
+  repairClipping(samples) {
+    const result = new Float32Array(samples);
+    for (let i = 1; i < result.length - 1; i++) {
+      if (Math.abs(result[i]) >= 0.999) {
+        // 线性插值修复
+        const prev = result[i - 1];
+        const next = result[i + 1];
+        result[i] = (prev + next) * 0.5;
+      }
+    }
+    return result;
+  },
+
+  /** 一阶低通滤波器 */
+  lowpass(samples, cutoff, sampleRate) {
+    const dt = 1 / sampleRate;
+    const rc = 1 / (2 * Math.PI * cutoff);
+    const alpha = dt / (rc + dt);
+    let prev = 0;
+    const out = new Float32Array(samples.length);
+    for (let i = 0; i < samples.length; i++) {
+      prev = prev + alpha * (samples[i] - prev);
+      out[i] = prev;
+    }
+    return out;
+  },
+
+  /** 一阶高通滤波器 */
+  highpass(samples, cutoff, sampleRate) {
+    const low = this.lowpass(samples, cutoff, sampleRate);
+    const out = new Float32Array(samples.length);
+    for (let i = 0; i < samples.length; i++) {
+      out[i] = samples[i] - low[i];
+    }
+    return out;
+  },
+
+  /** 多段动态压缩 */
+  multibandCompress(samples, sampleRate) {
+    // 三段分割
+    const lowBand = this.lowpass(samples, 250, sampleRate);
+    const midLow = this.lowpass(samples, 4000, sampleRate);
+    const midBand = this.highpass(midLow, 250, sampleRate);
+    const highBand = this.highpass(samples, 4000, sampleRate);
+
+    // 分别压缩
+    const cLow = this.applyCompression(lowBand, -20, 2, 5, 50, sampleRate);
+    const cMid = this.applyCompression(midBand, -18, 3, 5, 50, sampleRate);
+    const cHigh = this.applyCompression(highBand, -22, 4, 5, 50, sampleRate);
+
+    // 合并
+    const result = new Float32Array(samples.length);
+    for (let i = 0; i < samples.length; i++) {
+      result[i] = cLow[i] + cMid[i] + cHigh[i];
+    }
+    return result;
+  },
+
+  /** 完整处理流水线 */
+  processAudio(audioBuffer, gainDb, enableGuard, targetLufs) {
+    const sampleRate = audioBuffer.sampleRate;
+    const numChannels = audioBuffer.numberOfChannels;
+
+    // 获取各声道数据
+    const channels = [];
+    for (let ch = 0; ch < numChannels; ch++) {
+      channels.push(new Float32Array(audioBuffer.getChannelData(ch)));
+    }
+
+    // 频谱分析 (用于防失真参考)
+    const monoData = AudioAnalyzer.getChannelData(audioBuffer);
+    const spectrum = AudioAnalyzer.analyzeSpectrum(monoData, sampleRate);
+
+    // 处理每个声道
+    const processedChannels = channels.map(originalData => {
+      let processed = new Float32Array(originalData);
+
+      // 重试循环 (最多3次)
+      let currentGain = gainDb;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        // 第三步: 应用增益
+        processed = this.applyGain(originalData, currentGain);
+
+        if (enableGuard) {
+          // 第四步: 多段动态压缩
+          processed = this.multibandCompress(processed, sampleRate);
+        }
+
+        // 第六步: 软限幅
+        processed = this.applySoftClip(processed, 0.95);
+
+        // 第七步: 砖墙限幅
+        processed = this.applyLimiter(processed, -0.5);
+
+        // 第八步: 削波修复
+        processed = this.repairClipping(processed);
+
+        // 第九步: 音质验证
+        if (enableGuard) {
+          const report = DistortionGuard.validateOutput(originalData, processed, sampleRate);
+          if (report.passed || attempt >= 3) {
+            break;
+          }
+          // 第十步: 降低增益重试
+          currentGain -= 1.0;
+        } else {
+          break;
+        }
+      }
+
+      return processed;
+    });
+
+    // 创建处理后的AudioBuffer
+    const ctx = AudioAnalyzer.initContext();
+    const outputBuffer = ctx.createBuffer(numChannels, audioBuffer.length, sampleRate);
+    for (let ch = 0; ch < numChannels; ch++) {
+      outputBuffer.copyToChannel(processedChannels[ch], ch);
+    }
+
+    // 音质验证报告
+    const qualityReport = enableGuard
+      ? DistortionGuard.validateOutput(monoData, AudioAnalyzer.getChannelData(outputBuffer), sampleRate)
+      : { thdOriginal: 0, thdProcessed: 0, thdChange: 0, snrDb: 0, spectralDeviationDb: 0, passed: true, warnings: [] };
+
+    return {
+      audioBuffer: outputBuffer,
+      qualityReport,
+      actualGainDb: gainDb,
+      processedChannels
+    };
+  }
+};
+
+/* ================================================================
+ * AI防失真模块
+ * ================================================================ */
+const DistortionGuard = {
+
+  /** 计算THD */
+  calculateTHD(samples, sampleRate) {
+    const fftSize = 8192;
+    const len = Math.min(fftSize, samples.length);
+    const real = new Float32Array(fftSize);
+    const imag = new Float32Array(fftSize);
+
+    for (let i = 0; i < len; i++) {
+      const window = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (len - 1));
+      real[i] = samples[i] * window;
+    }
+
+    AudioAnalyzer._fft(real, imag);
+
+    // 找到基频 (最大幅度位置)
+    let maxMag = 0, fundIdx = 0;
+    const halfSize = fftSize / 2;
+    for (let i = 1; i < halfSize; i++) {
+      const mag = Math.sqrt(real[i] * real[i] + imag[i] * imag[i]);
+      if (mag > maxMag) { maxMag = mag; fundIdx = i; }
+    }
+
+    if (maxMag < EPSILON) return 0;
+
+    // 计算谐波功率
+    const fundPower = maxMag * maxMag;
+    let harmonicPower = 0;
+    for (let h = 2; h <= 6; h++) {
+      const idx = fundIdx * h;
+      if (idx < halfSize) {
+        const mag = Math.sqrt(real[idx] * real[idx] + imag[idx] * imag[idx]);
+        harmonicPower += mag * mag;
+      }
+    }
+
+    return Math.sqrt(harmonicPower) / Math.sqrt(fundPower) * 100;
+  },
+
+  /** 音质验证 */
+  validateOutput(originalData, processedData, sampleRate) {
+    const thdOriginal = this.calculateTHD(originalData, sampleRate);
+    const thdProcessed = this.calculateTHD(processedData, sampleRate);
+    const thdChange = thdProcessed - thdOriginal;
+
+    // SNR计算
+    let noisePower = 0, signalPower = 0;
+    for (let i = 0; i < originalData.length; i++) {
+      const noise = processedData[i] - originalData[i];
+      noisePower += noise * noise;
+      signalPower += originalData[i] * originalData[i];
+    }
+    const snrDb = 10 * Math.log10(signalPower / (noisePower + EPSILON) + EPSILON);
+
+    // 频谱偏差
+    const specOrig = AudioAnalyzer.analyzeSpectrum(originalData, sampleRate);
+    const specProc = AudioAnalyzer.analyzeSpectrum(processedData, sampleRate);
+    let devSum = 0;
+    const halfSize = specOrig.dbSpectrum.length;
+    for (let i = 0; i < halfSize; i++) {
+      devSum += Math.pow(specOrig.dbSpectrum[i] - specProc.dbSpectrum[i], 2);
+    }
+    const spectralDeviationDb = Math.sqrt(devSum / halfSize);
+
+    const passed = thdChange < 2 && spectralDeviationDb < 3;
+    const warnings = [];
+    if (!passed) {
+      if (thdChange >= 2) warnings.push(`THD增加${thdChange.toFixed(2)}%超过阈值`);
+      if (spectralDeviationDb >= 3) warnings.push(`频谱偏差${spectralDeviationDb.toFixed(2)}dB超过阈值`);
+    }
+
+    return { thdOriginal, thdProcessed, thdChange, snrDb, spectralDeviationDb, passed, warnings };
+  }
+};
+
+/* ================================================================
+ * AI智能体模块 (本地离线模式)
+ * ================================================================ */
+const AIAgent = {
+
+  /** 本地智能算法 */
+  localIntelligentAlgorithm(analysis) {
+    const rms = analysis.rmsDb;
+    const lufs = analysis.loudnessLufs;
+    const targetLufs = -14;
+    let gain, warnings = [];
+
+    if (rms < -30) {
+      gain = Math.min(targetLufs - lufs, 12);
+    } else if (rms < -20) {
+      gain = Math.min(targetLufs - lufs, 9);
+    } else {
+      gain = Math.min(targetLufs - lufs, 6);
+    }
+
+    if (analysis.hasClipping) {
+      gain = Math.max(0, gain - 3);
+      warnings.push('检测到削波失真，已降低推荐增益3dB');
+    }
+
+    if (gain <= 0) {
+      warnings.push('音频已达到或超过目标响度，建议不增大');
+    }
+
+    return {
+      source: 'local',
+      recommended_gain_db: gain,
+      compression_ratio: 3.0,
+      limiter_ceiling_db: -0.5,
+      eq_adjustments: { low: 0, mid: 0, high: -1 },
+      warnings,
+      quality_prediction: gain > 8 ? '增益较大，AI防失真保护将全面介入' : '增益适中，音质保持良好'
+    };
+  },
+
+  /** 智能处理 - 先尝试AI接口，失败降级本地 */
+  async smartProcess(analysis) {
+    // 尝试云端AI
+    if (state.config.ai_api_key) {
+      try {
+        const result = await this.analyzeAndSuggest(analysis);
+        if (result) return result;
+      } catch (e) {
+        console.warn('AI接口调用失败，降级到本地模式:', e);
+      }
+    }
+    // 降级到本地
+    return this.localIntelligentAlgorithm(analysis);
+  },
+
+  /** 调用AI接口 */
+  async analyzeAndSuggest(analysis) {
+    const prompt = `你是一位专业音频母带处理工程师，请根据以下音频分析数据给出最佳音量增大方案：峰值${analysis.peakDb.toFixed(1)} dB，RMS响度${analysis.rmsDb.toFixed(1)} dB，动态范围${analysis.dynamicRangeDb.toFixed(1)} dB，是否存在削波：${analysis.hasClipping ? '是' : '否'}。请返回JSON格式：{"recommended_gain_db": 数值, "compression_ratio": 数值, "limiter_ceiling_db": 数值, "eq_adjustments": {"low": 数值, "mid": 数值, "high": 数值}, "warnings": ["字符串"], "quality_prediction": "字符串"}。请确保建议不会导致音频失真。`;
+
+    const response = await fetch(state.config.ai_api_base_url + '/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + state.config.ai_api_key
+      },
+      body: JSON.stringify({
+        model: state.config.ai_model_name,
+        messages: [
+          { role: 'system', content: '你是专业音频母带处理工程师，只返回JSON格式数据。' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.3
+      }),
+      signal: AbortSignal.timeout(30000)
+    });
+
+    if (!response.ok) throw new Error('API返回错误: ' + response.status);
+    const data = await response.json();
+    const content = data.choices[0].message.content;
+    // 去除markdown代码块标记
+    const jsonStr = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    const parsed = JSON.parse(jsonStr);
+    parsed.source = 'ai';
+    return parsed;
+  }
+};
+
+/* ================================================================
+ * WAV编码器
+ * ================================================================ */
+const WAVEncoder = {
+
+  /** 将AudioBuffer编码为WAV Blob */
+  encode(audioBuffer) {
+    const numChannels = audioBuffer.numberOfChannels;
+    const sampleRate = audioBuffer.sampleRate;
+    const numSamples = audioBuffer.length;
+    const bytesPerSample = 2; // 16-bit
+    const blockAlign = numChannels * bytesPerSample;
+    const byteRate = sampleRate * blockAlign;
+    const dataSize = numSamples * blockAlign;
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+
+    // WAV头
+    this._writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + dataSize, true);
+    this._writeString(view, 8, 'WAVE');
+    this._writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, 16, true);
+    this._writeString(view, 36, 'data');
+    view.setUint32(40, dataSize, true);
+
+    // 交错多声道PCM数据
+    let offset = 44;
+    const channels = [];
+    for (let ch = 0; ch < numChannels; ch++) {
+      channels.push(audioBuffer.getChannelData(ch));
+    }
+    for (let i = 0; i < numSamples; i++) {
+      for (let ch = 0; ch < numChannels; ch++) {
+        let s = Math.max(-1, Math.min(1, channels[ch][i]));
+        view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+        offset += 2;
+      }
+    }
+    return new Blob([buffer], { type: 'audio/wav' });
+  },
+
+  _writeString(view, offset, str) {
+    for (let i = 0; i < str.length; i++) {
+      view.setUint8(offset + i, str.charCodeAt(i));
+    }
+  }
+};
+
+/* ================================================================
+ * UI管理器
+ * ================================================================ */
+const UI = {
+
+  /** 初始化 */
+  init() {
+    this.bindEvents();
+    this.loadConfig();
+  },
+
+  /** 绑定事件 */
+  bindEvents() {
+    // 导入按钮
+    document.getElementById('btn-import').addEventListener('click', () => {
+      document.getElementById('file-input').click();
+    });
+    document.getElementById('file-input').addEventListener('change', e => {
+      this.handleFiles(e.target.files);
+      e.target.value = '';
+    });
+
+    // 文件夹导入
+    document.getElementById('btn-folder').addEventListener('click', () => {
+      document.getElementById('folder-input').click();
+    });
+    document.getElementById('folder-input').addEventListener('change', e => {
+      this.handleFiles(e.target.files);
+      e.target.value = '';
+    });
+
+    // 开始处理
+    document.getElementById('btn-process').addEventListener('click', () => this.startProcessing());
+
+    // 导出全部
+    document.getElementById('btn-export').addEventListener('click', () => this.exportAll());
+
+    // 设置
+    document.getElementById('btn-settings').addEventListener('click', () => this.openSettings());
+    document.getElementById('btn-settings-cancel').addEventListener('click', () => this.closeSettings());
+    document.getElementById('btn-settings-ok').addEventListener('click', () => this.saveSettings());
+
+    // 测试连接
+    document.getElementById('btn-test-conn').addEventListener('click', () => this.testConnection());
+
+    // 最大增益滑块
+    const maxGainSlider = document.getElementById('set-max-gain');
+    maxGainSlider.addEventListener('input', e => {
+      document.getElementById('set-max-gain-val').textContent = e.target.value;
+    });
+
+    // 删除选中/清空
+    document.getElementById('btn-delete-sel').addEventListener('click', () => this.deleteSelected());
+    document.getElementById('btn-clear').addEventListener('click', () => this.clearAll());
+
+    // 增益滑块联动
+    const slider = document.getElementById('gain-slider');
+    const input = document.getElementById('gain-input');
+    slider.addEventListener('input', e => {
+      const val = parseFloat(e.target.value);
+      input.value = val.toFixed(1);
+      this.updateGainDisplay(val);
+      this.checkWarning(val);
+    });
+    input.addEventListener('input', e => {
+      let val = parseFloat(e.target.value) || 0;
+      val = Math.max(-6, Math.min(18, val));
+      if (val >= 0 && val <= 12) slider.value = val;
+      this.updateGainDisplay(val);
+      this.checkWarning(val);
+    });
+
+    // 处理模式
+    document.getElementById('mode-select').addEventListener('change', e => {
+      const targetLufs = parseFloat(e.target.value);
+      // 重新计算推荐增益
+      if (state.selectedId !== null) {
+        const item = state.files.find(f => f.id === state.selectedId);
+        if (item && item.analysis) {
+          const rec = AudioAnalyzer.getRecommendedGain(item.analysis, targetLufs);
+          item.aiSuggestion = AIAgent.localIntelligentAlgorithm(item.analysis);
+          item.aiSuggestion.recommended_gain_db = rec.recommendedGainDb;
+          this.updateAIPanel(item);
+        }
+      }
+    });
+
+    // AI防失真复选框
+    document.getElementById('ai-guard-check').addEventListener('change', e => {
+      if (e.target.checked) {
+        document.getElementById('warning-text').style.display = 'none';
+      }
+    });
+
+    // 拖拽导入
+    const dropZone = document.getElementById('left-panel');
+    dropZone.addEventListener('dragover', e => {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('drag-over');
+    });
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      this.handleFiles(e.dataTransfer.files);
+    });
+
+    // 表格行点击
+    document.getElementById('file-table-body').addEventListener('click', e => {
+      const row = e.target.closest('tr');
+      if (row) {
+        const id = parseInt(row.dataset.id);
+        this.selectFile(id);
+      }
+    });
+
+    // 窗口关闭确认
+    window.addEventListener('beforeunload', e => {
+      if (state.isProcessing) {
+        e.preventDefault();
+        e.returnValue = '处理正在进行中，确定要退出吗？';
+      }
+    });
+  },
+
+  /** 处理导入的文件 */
+  async handleFiles(fileList) {
+    const files = Array.from(fileList).filter(f => {
+      const ext = '.' + f.name.split('.').pop().toLowerCase();
+      return SUPPORTED_EXT.includes(ext) || f.type.startsWith('audio/');
+    });
+
+    if (files.length === 0) {
+      this.toast('未找到支持的音频文件', 'warning');
+      return;
+    }
+
+    this.toast(`正在导入 ${files.length} 个文件...`, 'info');
+
+    for (const file of files) {
+      const id = state.nextId++;
+      const item = {
+        id, file, name: file.name,
+        audioBuffer: null, analysis: null,
+        aiSuggestion: null, status: 'pending',
+        result: null, selected: false
+      };
+      state.files.push(item);
+      this.addTableRow(item);
+
+      // 后台分析
+      try {
+        item.status = 'analyzing';
+        this.updateRowStatus(id, '分析中...', 'processing');
+
+        const audioBuffer = await AudioAnalyzer.decodeFile(file);
+        item.audioBuffer = audioBuffer;
+
+        const channelData = AudioAnalyzer.getChannelData(audioBuffer);
+        const analysis = AudioAnalyzer.analyzeVolume(channelData, audioBuffer.sampleRate);
+        const clipping = AudioAnalyzer.detectClipping(channelData);
+        analysis.clippedSamples = clipping.clippedSamples;
+        analysis.hasClipping = clipping.hasClipping;
+        analysis.clipRatio = clipping.clipRatio;
+        item.analysis = analysis;
+
+        // AI建议
+        item.aiSuggestion = AIAgent.localIntelligentAlgorithm(analysis);
+
+        item.status = 'pending';
+        this.updateRowAnalysis(id, analysis, item.aiSuggestion);
+        this.updateRowStatus(id, '未处理', 'pending');
+
+      } catch (err) {
+        console.error('分析失败:', err);
+        item.status = 'failed';
+        this.updateRowStatus(id, '分析失败', 'failed');
+        this.toast(`"${file.name}" 分析失败: ${err.message}`, 'error');
+      }
+    }
+
+    this.updateFileCount();
+    this.toast(`已导入 ${files.length} 个文件`, 'success');
+
+    // 自动选中第一个
+    if (state.selectedId === null && state.files.length > 0) {
+      this.selectFile(state.files[0].id);
+    }
+  },
+
+  /** 添加表格行 */
+  addTableRow(item) {
+    document.getElementById('empty-state').style.display = 'none';
+    const tbody = document.getElementById('file-table-body');
+    const tr = document.createElement('tr');
+    tr.dataset.id = item.id;
+    tr.innerHTML = `
+      <td class="col-idx">${item.id}</td>
+      <td class="col-name" title="${item.name}">${item.name}</td>
+      <td class="col-dur">-</td>
+      <td class="col-vol">-</td>
+      <td class="col-gain">-</td>
+      <td class="col-status"><span class="status-pending">待分析</span></td>
+    `;
+    tbody.appendChild(tr);
+  },
+
+  /** 更新行分析结果 */
+  updateRowAnalysis(id, analysis, aiSuggestion) {
+    const row = document.querySelector(`tr[data-id="${id}"]`);
+    if (!row || !row.audioBuffer) {
+      // 更新行
+      const tr = document.querySelector(`tr[data-id="${id}"]`);
+      if (tr) {
+        const item = state.files.find(f => f.id === id);
+        const dur = item.audioBuffer ? this.formatDuration(item.audioBuffer.duration) : '-';
+        tr.querySelector('.col-dur').textContent = dur;
+        tr.querySelector('.col-vol').textContent = analysis.rmsDb.toFixed(1);
+        tr.querySelector('.col-gain').textContent = '+' + aiSuggestion.recommended_gain_db.toFixed(1);
+      }
+    }
+    if (row) {
+      const item = state.files.find(f => f.id === id);
+      const dur = item.audioBuffer ? this.formatDuration(item.audioBuffer.duration) : '-';
+      row.querySelector('.col-dur').textContent = dur;
+      row.querySelector('.col-vol').textContent = analysis.rmsDb.toFixed(1);
+      row.querySelector('.col-gain').textContent = '+' + aiSuggestion.recommended_gain_db.toFixed(1);
+    }
+  },
+
+  /** 更新行状态 */
+  updateRowStatus(id, text, cls) {
+    const row = document.querySelector(`tr[data-id="${id}"]`);
+    if (!row) return;
+    row.className = cls || '';
+    const statusCell = row.querySelector('.col-status');
+    const statusMap = {
+      'pending': 'status-pending',
+      'processing': 'status-processing',
+      'done': 'status-done',
+      'failed': 'status-failed'
+    };
+    statusCell.innerHTML = `<span class="${statusMap[cls] || 'status-pending'}">${text}</span>`;
+  },
+
+  /** 选中文件 */
+  selectFile(id) {
+    state.selectedId = id;
+    // 高亮选中行
+    document.querySelectorAll('#file-table-body tr').forEach(tr => {
+      tr.classList.toggle('selected', parseInt(tr.dataset.id) === id);
+    });
+
+    const item = state.files.find(f => f.id === id);
+    if (!item) return;
+
+    // 更新分析面板
+    if (item.analysis) {
+      this.updateAnalysisPanel(item);
+    }
+    if (item.aiSuggestion) {
+      this.updateAIPanel(item);
+    }
+    if (item.result && item.result.qualityReport) {
+      this.updateQualityPanel(item.result.qualityReport);
+    } else {
+      document.getElementById('quality-card').style.display = 'none';
+    }
+
+    // 更新滑块为推荐增益
+    if (item.aiSuggestion) {
+      const recGain = item.aiSuggestion.recommended_gain_db;
+      const slider = document.getElementById('gain-slider');
+      const input = document.getElementById('gain-input');
+      slider.value = Math.max(0, Math.min(12, recGain));
+      input.value = recGain.toFixed(1);
+      this.updateGainDisplay(recGain);
+    }
+  },
+
+  /** 更新分析面板 */
+  updateAnalysisPanel(item) {
+    const a = item.analysis;
+    document.getElementById('analysis-card').style.display = 'block';
+    document.getElementById('m-peak').textContent = a.peakDb.toFixed(1) + ' dB';
+    document.getElementById('m-rms').textContent = a.rmsDb.toFixed(1) + ' dB';
+    document.getElementById('m-dr').textContent = a.dynamicRangeDb.toFixed(1) + ' dB';
+    document.getElementById('m-crest').textContent = a.crestFactor.toFixed(2);
+    document.getElementById('m-lufs').textContent = a.loudnessLufs.toFixed(1) + ' LUFS';
+
+    const clipEl = document.getElementById('m-clip');
+    if (a.hasClipping) {
+      clipEl.textContent = `是 (${a.clippedSamples}点)`;
+      clipEl.className = 'metric-value bad';
+    } else {
+      clipEl.textContent = '否';
+      clipEl.className = 'metric-value good';
+    }
+
+    // 绘制频谱
+    this.drawSpectrum(item);
+  },
+
+  /** 更新AI建议面板 */
+  updateAIPanel(item) {
+    const ai = item.aiSuggestion;
+    document.getElementById('ai-card').style.display = 'block';
+    const badge = document.getElementById('ai-badge');
+    badge.textContent = ai.source === 'ai' ? '云端AI' : '本地';
+    badge.className = 'badge ' + (ai.source === 'ai' ? 'badge-ai' : 'badge-local');
+
+    document.getElementById('ai-gain').textContent = '+' + ai.recommended_gain_db.toFixed(1) + ' dB';
+    document.getElementById('ai-ratio').textContent = ai.compression_ratio.toFixed(1) + ' : 1';
+    document.getElementById('ai-ceiling').textContent = ai.limiter_ceiling_db.toFixed(1) + ' dB';
+    const eq = ai.eq_adjustments || {};
+    document.getElementById('ai-eq').textContent = `低${eq.low||0} / 中${eq.mid||0} / 高${eq.high||0}`;
+    document.getElementById('ai-quality').textContent = ai.quality_prediction || '-';
+    document.getElementById('ai-warnings').textContent = (ai.warnings || []).join('; ');
+  },
+
+  /** 更新音质报告面板 */
+  updateQualityPanel(report) {
+    document.getElementById('quality-card').style.display = 'block';
+    document.getElementById('q-thd-orig').textContent = report.thdOriginal.toFixed(3) + '%';
+    document.getElementById('q-thd-proc').textContent = report.thdProcessed.toFixed(3) + '%';
+
+    const changeEl = document.getElementById('q-thd-change');
+    changeEl.textContent = (report.thdChange >= 0 ? '+' : '') + report.thdChange.toFixed(3) + '%';
+    changeEl.className = 'metric-value ' + (report.thdChange < 2 ? 'good' : 'bad');
+
+    document.getElementById('q-snr').textContent = report.snrDb.toFixed(1) + ' dB';
+
+    const devEl = document.getElementById('q-deviation');
+    devEl.textContent = report.spectralDeviationDb.toFixed(2) + ' dB';
+    devEl.className = 'metric-value ' + (report.spectralDeviationDb < 3 ? 'good' : 'bad');
+
+    const passEl = document.getElementById('q-passed');
+    passEl.textContent = report.passed ? '通过' : '未通过';
+    passEl.className = 'metric-value ' + (report.passed ? 'good' : 'bad');
+  },
+
+  /** 绘制频谱图 */
+  drawSpectrum(item) {
+    if (!item.audioBuffer) return;
+    const canvas = document.getElementById('spectrum-canvas');
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width = canvas.offsetWidth;
+    const h = canvas.height;
+
+    const channelData = AudioAnalyzer.getChannelData(item.audioBuffer);
+    const spectrum = AudioAnalyzer.analyzeSpectrum(channelData, item.audioBuffer.sampleRate);
+
+    ctx.clearRect(0, 0, w, h);
+    const bars = 64;
+    const step = Math.floor(spectrum.dbSpectrum.length / bars);
+    const barWidth = w / bars;
+
+    for (let i = 0; i < bars; i++) {
+      let avg = 0;
+      for (let j = 0; j < step; j++) {
+        avg += spectrum.dbSpectrum[i * step + j];
+      }
+      avg /= step;
+      // 归一化到画布高度
+      const norm = Math.max(0, Math.min(1, (avg + 80) / 80));
+      const barHeight = norm * h;
+
+      // 渐变颜色
+      const hue = 260 - i * 2; // 从紫色到青色
+      ctx.fillStyle = `hsla(${hue}, 80%, 60%, 0.8)`;
+      ctx.fillRect(i * barWidth, h - barHeight, barWidth - 1, barHeight);
+    }
+  },
+
+  /** 开始批量处理 */
+  async startProcessing() {
+    const pendingFiles = state.files.filter(f => f.status === 'pending' && f.audioBuffer);
+    if (pendingFiles.length === 0) {
+      this.toast('没有可处理的文件', 'warning');
+      return;
+    }
+
+    state.isProcessing = true;
+    const btnProcess = document.getElementById('btn-process');
+    btnProcess.disabled = true;
+    btnProcess.innerHTML = '<span class="spinner"></span> 处理中...';
+
+    const targetLufs = parseFloat(document.getElementById('mode-select').value);
+    const enableGuard = document.getElementById('ai-guard-check').checked;
+    let successCount = 0, failCount = 0;
+
+    for (let i = 0; i < pendingFiles.length; i++) {
+      const item = pendingFiles[i];
+      const gainDb = parseFloat(document.getElementById('gain-input').value) || item.aiSuggestion.recommended_gain_db;
+
+      this.updateProgress(i, pendingFiles.length, item.name, '处理中...');
+      this.updateRowStatus(item.id, '处理中...', 'processing');
+
+      try {
+        // 异步处理，让UI有机会更新
+        await new Promise(r => setTimeout(r, 10));
+
+        const result = AudioProcessor.processAudio(
+          item.audioBuffer, gainDb, enableGuard, targetLufs
+        );
+        item.result = result;
+        item.status = 'done';
+        successCount++;
+
+        this.updateRowStatus(item.id, '✅ 已完成', 'done');
+
+        // 自动下载
+        const blob = WAVEncoder.encode(result.audioBuffer);
+        const baseName = item.name.replace(/\.[^.]+$/, '');
+        this.downloadBlob(blob, `${baseName}_增强版.wav`);
+
+        // 更新详情面板
+        if (state.selectedId === item.id) {
+          this.updateQualityPanel(result.qualityReport);
+        }
+
+      } catch (err) {
+        console.error('处理失败:', err);
+        item.status = 'failed';
+        failCount++;
+        this.updateRowStatus(item.id, '❌ 失败', 'failed');
+      }
+
+      this.updateProgress(i + 1, pendingFiles.length, item.name, '完成');
+    }
+
+    state.isProcessing = false;
+    btnProcess.disabled = false;
+    btnProcess.innerHTML = '<span class="icon">⚡</span> 开始智能处理';
+    this.updateProgress(0, 0, '', '就绪');
+
+    this.toast(
+      `全部处理完成！共处理 ${pendingFiles.length} 个文件，成功 ${successCount} 个，失败 ${failCount} 个。文件已保存至下载文件夹。`,
+      failCount > 0 ? 'warning' : 'success'
+    );
+  },
+
+  /** 导出全部报告 */
+  exportAll() {
+    const doneFiles = state.files.filter(f => f.status === 'done' && f.result);
+    if (doneFiles.length === 0) {
+      this.toast('没有已处理的文件可导出', 'warning');
+      return;
+    }
+
+    const report = {
+      exportTime: new Date().toISOString(),
+      totalFiles: doneFiles.length,
+      results: doneFiles.map(item => ({
+        filename: item.name,
+        analysis: item.analysis,
+        aiSuggestion: item.aiSuggestion,
+        qualityReport: item.result.qualityReport,
+        actualGainDb: item.result.actualGainDb
+      }))
+    };
+
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+    this.downloadBlob(blob, `音频处理报告_${Date.now()}.json`);
+    this.toast(`已导出 ${doneFiles.length} 个文件的处理报告`, 'success');
+  },
+
+  /** 下载Blob */
+  downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+  },
+
+  /** 更新进度条 */
+  updateProgress(current, total, filename, status) {
+    const fill = document.getElementById('progress-fill');
+    const statusText = document.getElementById('status-text');
+    const count = document.getElementById('progress-count');
+
+    if (total > 0) {
+      fill.style.width = (current / total * 100) + '%';
+      count.textContent = `${current} / ${total}`;
+      statusText.textContent = `[${status}] ${filename || ''}`;
+    } else {
+      fill.style.width = '0%';
+      count.textContent = '0 / 0';
+      statusText.textContent = '就绪';
+    }
+  },
+
+  /** 更新文件计数 */
+  updateFileCount() {
+    document.getElementById('file-count-badge').textContent = `${state.files.length} 个文件`;
+  },
+
+  /** 更新增益显示 */
+  updateGainDisplay(val) {
+    const sign = val >= 0 ? '+' : '';
+    document.getElementById('gain-display').textContent = `${sign}${val.toFixed(1)} dB`;
+  },
+
+  /** 检查警告 */
+  checkWarning(val) {
+    const guardChecked = document.getElementById('ai-guard-check').checked;
+    const warning = document.getElementById('warning-text');
+    if (val > 12 && guardChecked) {
+      warning.style.display = 'block';
+    } else {
+      warning.style.display = 'none';
+    }
+  },
+
+  /** 删除选中 */
+  deleteSelected() {
+    const selected = document.querySelectorAll('#file-table-body tr.selected');
+    if (selected.length === 0) {
+      this.toast('请先选中要删除的文件', 'warning');
+      return;
+    }
+    selected.forEach(tr => {
+      const id = parseInt(tr.dataset.id);
+      state.files = state.files.filter(f => f.id !== id);
+      tr.remove();
+    });
+    state.selectedId = null;
+    this.updateFileCount();
+    if (state.files.length === 0) {
+      document.getElementById('empty-state').style.display = 'flex';
+    }
+    this.toast(`已删除 ${selected.length} 个文件`, 'info');
+  },
+
+  /** 清空列表 */
+  clearAll() {
+    if (state.files.length === 0) return;
+    if (!confirm('确定要清空所有文件吗？')) return;
+    state.files = [];
+    state.selectedId = null;
+    document.getElementById('file-table-body').innerHTML = '';
+    document.getElementById('empty-state').style.display = 'flex';
+    document.getElementById('analysis-card').style.display = 'none';
+    document.getElementById('ai-card').style.display = 'none';
+    document.getElementById('quality-card').style.display = 'none';
+    this.updateFileCount();
+    this.updateProgress(0, 0, '', '就绪');
+    this.toast('已清空文件列表', 'info');
+  },
+
+  /** 打开设置 */
+  openSettings() {
+    document.getElementById('set-api-key').value = state.config.ai_api_key;
+    document.getElementById('set-api-url').value = state.config.ai_api_base_url;
+    document.getElementById('set-model').value = state.config.ai_model_name;
+    document.getElementById('set-output-dir').value = state.config.default_output_dir;
+    document.getElementById('set-guard').checked = state.config.ai_guard_enabled;
+    document.getElementById('set-max-gain').value = state.config.max_gain_db;
+    document.getElementById('set-max-gain-val').textContent = state.config.max_gain_db;
+    document.getElementById('settings-modal').classList.add('active');
+  },
+
+  /** 关闭设置 */
+  closeSettings() {
+    document.getElementById('settings-modal').classList.remove('active');
+  },
+
+  /** 保存设置 */
+  saveSettings() {
+    state.config.ai_api_key = document.getElementById('set-api-key').value;
+    state.config.ai_api_base_url = document.getElementById('set-api-url').value;
+    state.config.ai_model_name = document.getElementById('set-model').value;
+    state.config.default_output_dir = document.getElementById('set-output-dir').value;
+    state.config.ai_guard_enabled = document.getElementById('set-guard').checked;
+    state.config.max_gain_db = parseInt(document.getElementById('set-max-gain').value);
+    this.saveConfig();
+    this.closeSettings();
+    this.updateAIStatus();
+    this.toast('设置已保存', 'success');
+  },
+
+  /** 测试AI连接 */
+  async testConnection() {
+    const apiKey = document.getElementById('set-api-key').value;
+    const apiUrl = document.getElementById('set-api-url').value;
+    const model = document.getElementById('set-model').value;
+
+    if (!apiKey) {
+      this.toast('请先输入API密钥', 'warning');
+      return;
+    }
+
+    const btn = document.getElementById('btn-test-conn');
+    btn.innerHTML = '<span class="spinner"></span> 测试中...';
+    btn.disabled = true;
+
+    try {
+      const response = await fetch(apiUrl + '/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + apiKey
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: [{ role: 'user', content: '请回复"连接成功"' }],
+          max_tokens: 10
+        }),
+        signal: AbortSignal.timeout(15000)
+      });
+
+      if (response.ok) {
+        this.toast('AI接口连接成功！', 'success');
+      } else {
+        this.toast(`连接失败: HTTP ${response.status}`, 'error');
+      }
+    } catch (err) {
+      this.toast(`连接失败: ${err.message}`, 'error');
+    } finally {
+      btn.innerHTML = '测试连接';
+      btn.disabled = false;
+    }
+  },
+
+  /** 更新AI状态显示 */
+  updateAIStatus() {
+    const status = document.getElementById('ai-status');
+    if (state.config.ai_api_key) {
+      status.innerHTML = '<span class="dot" style="background:var(--accent-cyan);box-shadow:0 0 8px var(--accent-cyan)"></span>云端AI模式';
+    } else {
+      status.innerHTML = '<span class="dot"></span>本地智能模式';
+    }
+  },
+
+  /** 保存配置到localStorage */
+  saveConfig() {
+    try {
+      localStorage.setItem('audio_enhancer_config', JSON.stringify(state.config));
+    } catch (e) {
+      console.warn('配置保存失败:', e);
+    }
+  },
+
+  /** 加载配置 */
+  loadConfig() {
+    try {
+      const saved = localStorage.getItem('audio_enhancer_config');
+      if (saved) {
+        Object.assign(state.config, JSON.parse(saved));
+      }
+    } catch (e) {
+      console.warn('配置加载失败:', e);
+    }
+    this.updateAIStatus();
+  },
+
+  /** 格式化时长 */
+  formatDuration(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  },
+
+  /** Toast通知 */
+  toast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+    toast.innerHTML = `<span>${icons[type] || ''}</span> ${message}`;
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), 3500);
+  }
+};
+
+/* ================================================================
+ * 启动
+ * ================================================================ */
+document.addEventListener('DOMContentLoaded', () => {
+  UI.init();
+});
+</script>
+
+
+</body></html>
